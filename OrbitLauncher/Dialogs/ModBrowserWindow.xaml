@@ -1,0 +1,173 @@
+<Window x:Class="OrbitLauncher.Dialogs.ModBrowserWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:OrbitLauncher.Models"
+        Title="Каталог контента" Width="1180" Height="760" MinWidth="980" MinHeight="640"
+        WindowStyle="None" WindowStartupLocation="CenterOwner" Background="Transparent">
+    <Border Style="{StaticResource WindowFrame}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="52" />
+                <RowDefinition Height="76" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="48" />
+            </Grid.RowDefinitions>
+
+            <Grid Style="{StaticResource DialogTitleBar}" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <StackPanel Orientation="Horizontal" Margin="18,0" VerticalAlignment="Center">
+                    <TextBlock Text="&#xE74C;" Style="{StaticResource FluentIcon}" Foreground="{StaticResource PrimaryLightBrush}" FontSize="18" />
+                    <TextBlock Text="Каталог контента" FontWeight="SemiBold" Margin="11,0,0,0" />
+                    <TextBlock Text=" · " Style="{StaticResource MutedText}" />
+                    <TextBlock x:Name="InstanceText" Style="{StaticResource MutedText}" />
+                </StackPanel>
+                <Button HorizontalAlignment="Right" Width="48" Style="{StaticResource TitleBarButton}" Click="Close_Click">
+                    <TextBlock Text="&#xE8BB;" Style="{StaticResource FluentIcon}" />
+                </Button>
+            </Grid>
+
+            <Border Grid.Row="1" Background="#D30A111C" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="20,14">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="170" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <ComboBox x:Name="CatalogSourceCombo" ItemsSource="{Binding CatalogSources}" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="CatalogSource_SelectionChanged" />
+                    <Grid Grid.Column="2">
+                        <TextBox x:Name="SearchBox" AutomationProperties.AutomationId="CatalogSearchBox"
+                                 KeyDown="SearchBox_KeyDown" TextChanged="SearchBox_TextChanged" Padding="40,10,14,10" />
+                        <TextBlock Text="&#xE721;" Style="{StaticResource FluentIcon}" Foreground="{StaticResource MutedTextBrush}"
+                                   Margin="14,0,0,0" HorizontalAlignment="Left" IsHitTestVisible="False" />
+                        <TextBlock Text="Название, автор или ключевые слова" Foreground="#8795AA" IsHitTestVisible="False"
+                                   Margin="40,0,0,0" VerticalAlignment="Center">
+                            <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                    <Button Grid.Column="4" Content="Найти" Style="{StaticResource PrimaryButton}" Padding="25,9" Click="SearchButton_Click" />
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="238" /><ColumnDefinition Width="*" /><ColumnDefinition x:Name="DetailColumn" Width="0" /></Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Background="#A70B1320" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0" Padding="16">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Text="Тип контента" Style="{StaticResource CaptionText}" Margin="2,0,0,6" />
+                            <ComboBox x:Name="ProjectTypeCombo" AutomationProperties.AutomationId="ProjectTypeFilter" ItemsSource="{Binding ProjectTypes}" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="ProjectType_SelectionChanged" />
+                            <TextBlock Text="Версия Minecraft" Style="{StaticResource CaptionText}" Margin="2,16,0,6" />
+                            <ComboBox x:Name="GameVersionCombo" ItemsSource="{Binding GameVersions}" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="Filter_SelectionChanged" />
+                            <TextBlock Text="Загрузчик" Style="{StaticResource CaptionText}" Margin="2,16,0,6" />
+                            <ComboBox x:Name="LoaderCombo" ItemsSource="{Binding Loaders}" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="Filter_SelectionChanged" />
+                            <TextBlock Text="Категория" Style="{StaticResource CaptionText}" Margin="2,16,0,6" />
+                            <ComboBox x:Name="CategoryCombo" ItemsSource="{Binding Categories}" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="Filter_SelectionChanged" />
+                            <TextBlock Text="Поддержка стороны" Style="{StaticResource CaptionText}" Margin="2,16,0,6" />
+                            <ComboBox x:Name="EnvironmentCombo" ItemsSource="{Binding EnvironmentOptions}" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="Filter_SelectionChanged" />
+                            <TextBlock Text="Сортировка" Style="{StaticResource CaptionText}" Margin="2,16,0,6" />
+                            <ComboBox x:Name="SortCombo" ItemsSource="{Binding SortOptions}" DisplayMemberPath="DisplayName" SelectedValuePath="Id" SelectionChanged="Filter_SelectionChanged" />
+                            <Button Content="Сбросить фильтры" Style="{StaticResource LinkButton}" Margin="0,18,0,0" HorizontalAlignment="Left" Click="ResetFilters_Click" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+
+                <Grid Grid.Column="1">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="16,14,10,12">
+                        <StackPanel>
+                            <ItemsControl ItemsSource="{Binding Results}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type models:ModSearchResult}">
+                                        <Border Style="{StaticResource CardBorder}" Margin="0,0,6,10" Padding="14" Cursor="Hand" Tag="{Binding}" MouseLeftButtonUp="ProjectCard_MouseLeftButtonUp">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="70" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                <Border Width="58" Height="58" CornerRadius="12" Background="#17243A" ClipToBounds="True">
+                                                    <Image Source="{Binding Icon}" Stretch="UniformToFill" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" Margin="2,0,18,0" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="400" />
+                                                        <Border Style="{StaticResource TagPill}" Margin="9,0,0,0"><TextBlock Text="{Binding ProjectTypeDisplay}" FontSize="9" Foreground="{StaticResource PrimaryLightBrush}" /></Border>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding Description}" Style="{StaticResource MutedText}" FontSize="11" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="0,5,0,0" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                        <TextBlock Text="{Binding Author}" Style="{StaticResource CaptionText}" /><TextBlock Text=" · " Style="{StaticResource CaptionText}" /><TextBlock Text="{Binding DownloadsText}" Style="{StaticResource CaptionText}" /><TextBlock Text=" · " Style="{StaticResource CaptionText}" /><TextBlock Text="{Binding UpdatedText}" Style="{StaticResource CaptionText}" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <Button Grid.Column="2" Content="{Binding ActionText}" Tag="{Binding}" Style="{StaticResource SecondaryButton}" VerticalAlignment="Center" Click="InstallButton_Click" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button x:Name="LoadMoreButton" Content="Показать ещё" Style="{StaticResource SecondaryButton}" Margin="0,4,6,12" HorizontalAlignment="Center" Visibility="Collapsed" Click="LoadMoreButton_Click" />
+                        </StackPanel>
+                    </ScrollViewer>
+                    <StackPanel x:Name="LoadingPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                        <ProgressBar IsIndeterminate="True" Width="170" /><TextBlock Text="Загружаем каталог…" Style="{StaticResource MutedText}" Margin="0,14,0,0" HorizontalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel x:Name="EmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                        <TextBlock Text="&#xE721;" Style="{StaticResource FluentIcon}" FontSize="30" Foreground="{StaticResource PrimaryLightBrush}" HorizontalAlignment="Center" /><TextBlock x:Name="EmptyTitleText" Text="Ничего не найдено" FontSize="17" FontWeight="SemiBold" Margin="0,12,0,0" HorizontalAlignment="Center" /><TextBlock x:Name="EmptyHintText" Text="Измените запрос или фильтры." Style="{StaticResource MutedText}" Margin="0,5,0,0" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="440" />
+                    </StackPanel>
+                </Grid>
+
+                <Border x:Name="DetailPanel" Grid.Column="2" Visibility="Collapsed" Background="#F40A111C" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="50" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                        <Grid Margin="18,0,10,0">
+                            <TextBlock Text="О проекте" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <Button HorizontalAlignment="Right" Width="38" Height="34" Style="{StaticResource TitleBarButton}" ToolTip="Закрыть описание" Click="CloseDetailsButton_Click"><TextBlock Text="&#xE8BB;" Style="{StaticResource FluentIcon}" /></Button>
+                        </Grid>
+                        <Grid Grid.Row="1">
+                            <StackPanel x:Name="DetailLoadingPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                                <ProgressBar IsIndeterminate="True" Width="150" /><TextBlock Text="Загружаем описание…" Style="{StaticResource MutedText}" Margin="0,12,0,0" />
+                            </StackPanel>
+                            <ScrollViewer x:Name="DetailContent" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Padding="18,0,14,18">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="76" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Border Width="66" Height="66" CornerRadius="14" Background="#17243A" ClipToBounds="True">
+                                            <Image x:Name="DetailIcon" Stretch="UniformToFill" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" /><TextBlock Text="{Binding AuthorText}" Style="{StaticResource MutedText}" Margin="0,5,0,0" /></StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="{Binding Summary}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,16,0,0" />
+                                    <WrapPanel Margin="0,14,0,0">
+                                        <Border Style="{StaticResource StatusPill}" Margin="0,0,7,7"><TextBlock Text="{Binding StatsText}" Style="{StaticResource CaptionText}" /></Border>
+                                        <Border Style="{StaticResource StatusPill}" Margin="0,0,7,7"><TextBlock Text="{Binding UpdatedText}" Style="{StaticResource CaptionText}" /></Border>
+                                        <Border Style="{StaticResource StatusPill}" Margin="0,0,7,7"><TextBlock Text="{Binding LicenseText}" Style="{StaticResource CaptionText}" /></Border>
+                                    </WrapPanel>
+                                    <TextBlock Text="{Binding CompatibilityText}" Foreground="{StaticResource PrimaryLightBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0" />
+                                    <WrapPanel Margin="0,17,0,0">
+                                        <Button x:Name="DetailInstallButton" Content="{Binding ActionText}" Tag="{Binding SearchResult}" Style="{StaticResource PrimaryButton}" Margin="0,0,8,8" Click="InstallButton_Click" />
+                                        <Button Content="Страница проекта" Style="{StaticResource SecondaryButton}" Margin="0,0,8,8" Click="OpenProjectWebsite_Click" />
+                                        <Button x:Name="OpenDownloadFolderButton" Content="Открыть папку" Style="{StaticResource SecondaryButton}" Visibility="Collapsed" Margin="0,0,8,8" Click="OpenDownloadFolder_Click" />
+                                    </WrapPanel>
+
+                                    <StackPanel Margin="0,15,0,0">
+                                        <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding Gallery.Count}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                                        <TextBlock Text="Галерея" FontSize="15" FontWeight="SemiBold" />
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="0,9,0,0">
+                                            <ItemsControl ItemsSource="{Binding Gallery}">
+                                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate><DataTemplate><Border Width="220" Height="125" CornerRadius="10" Background="#17243A" Margin="0,0,10,6" ClipToBounds="True" ToolTip="{Binding Title}"><Image Source="{Binding Image}" Stretch="UniformToFill" /></Border></DataTemplate></ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </StackPanel>
+
+                                    <StackPanel Margin="0,17,0,0">
+                                        <TextBlock Text="Зависимости" FontSize="15" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding DependencyStatusText}" Style="{StaticResource CaptionText}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                        <ItemsControl ItemsSource="{Binding Dependencies}" Margin="0,7,0,0">
+                                            <ItemsControl.ItemTemplate><DataTemplate><Border Background="#101C2C" CornerRadius="8" Padding="10,7" Margin="0,0,0,6"><Grid><TextBlock Text="{Binding Title}" /><TextBlock Text="{Binding TypeDisplay}" Style="{StaticResource CaptionText}" HorizontalAlignment="Right" /></Grid></Border></DataTemplate></ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                    <TextBlock Text="Описание" FontSize="15" FontWeight="SemiBold" Margin="0,17,0,0" />
+                                    <TextBlock Text="{Binding BodyText}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="3" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="18,0">
+                <Grid><TextBlock x:Name="StatusText" Text="Загрузка каталога…" Style="{StaticResource CaptionText}" VerticalAlignment="Center" /><Button Content="Закрыть" Style="{StaticResource SecondaryButton}" Padding="14,6" HorizontalAlignment="Right" VerticalAlignment="Center" Click="Close_Click" /></Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>
