@@ -1,0 +1,10 @@
+namespace OrbitLauncher.Utilities;
+
+internal static partial class AppConfiguration
+{
+    static partial void ApplyLocal(Values values)
+    {
+        values.MicrosoftClientId = "YOUR-MICROSOFT-CLIENT-ID";
+        values.CurseForgeApiKey = "YOUR-CURSEFORGE-API-KEY";
+    }
+}

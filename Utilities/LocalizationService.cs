@@ -1,0 +1,352 @@
+using System.Globalization;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
+
+namespace OrbitLauncher.Utilities;
+
+public static class LocalizationService
+{
+    private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["НАВИГАЦИЯ"] = "NAVIGATION",
+        ["Библиотека"] = "Library",
+        ["Моды"] = "Mods",
+        ["Настройки"] = "Settings",
+        ["Ваши сборки Minecraft"] = "Your Minecraft instances",
+        ["Импорт"] = "Import",
+        ["Новая сборка"] = "New instance",
+        ["Поиск сборок"] = "Search instances",
+        ["Библиотека пуста"] = "Your library is empty",
+        ["Создайте сборку или импортируйте готовую."] = "Create an instance or import an existing one.",
+        ["Создать сборку"] = "Create instance",
+        ["Запустить"] = "Launch",
+        ["Параметры"] = "Options",
+        ["Изменить иконку"] = "Change icon",
+        ["Переименовать"] = "Rename",
+        ["Установить моды"] = "Install mods",
+        ["Создать копию"] = "Duplicate",
+        ["Экспортировать"] = "Export",
+        ["Открыть папку"] = "Open folder",
+        ["Удалить"] = "Delete",
+        ["Без аккаунта"] = "No account",
+        ["Аккаунт не подключён"] = "Account not connected",
+        ["Офлайн • тестовый режим"] = "Offline • test mode",
+        ["Офлайн-режим включён в настройках"] = "Offline mode is enabled in settings",
+        ["Лицензионная сессия Microsoft активна"] = "Licensed Microsoft session is active",
+        ["Для запуска требуется Microsoft-аккаунт"] = "A Microsoft account is required to launch",
+        ["Войти в Microsoft"] = "Sign in with Microsoft",
+        ["Выйти"] = "Sign out",
+        ["Моды и контент"] = "Mods and content",
+        ["Управляйте файлами сборки или устанавливайте новые из каталога"] = "Manage instance files or install new content from the catalog",
+        ["Выберите сборку"] = "Select an instance",
+        ["Открыть каталог"] = "Open catalog",
+        ["Включить все"] = "Enable all",
+        ["Отключить все"] = "Disable all",
+        ["Поиск установленных файлов"] = "Search installed files",
+        ["Любое состояние"] = "Any state",
+        ["Только включённые"] = "Enabled only",
+        ["Только отключённые"] = "Disabled only",
+        ["По названию"] = "By name",
+        ["По дате изменения"] = "By modified date",
+        ["По размеру"] = "By size",
+        ["Здесь пока пусто"] = "Nothing here yet",
+        ["По фильтрам ничего не найдено"] = "No items match the filters",
+        ["Откройте каталог или перетащите подходящие файлы в это окно."] = "Open the catalog or drag supported files into this window.",
+        ["Перетащите сюда JAR, ZIP или MRPACK — файл попадёт в выбранный раздел"] = "Drop a JAR, ZIP, or MRPACK here to add it to the selected section",
+        ["Параметры лаунчера и аккаунта"] = "Launcher and account preferences",
+        ["Аккаунт Minecraft"] = "Minecraft account",
+        ["Вход нужен только для запуска игры"] = "Sign-in is required only to launch the game",
+        ["Офлайн-режим"] = "Offline mode",
+        ["Создаёт локальную игровую сессию без Microsoft. Серверы с online-mode и Realms в этом режиме недоступны."] = "Creates a local game session without Microsoft. Realms and online-mode servers are unavailable.",
+        ["Разрешить запуск без Microsoft-аккаунта"] = "Allow launching without a Microsoft account",
+        ["При выключении для запуска снова потребуется лицензионная сессия"] = "When disabled, a licensed session is required again",
+        ["Имя офлайн-игрока"] = "Offline player name",
+        ["От 3 до 16 символов: латинские буквы, цифры и подчёркивание."] = "3 to 16 characters: Latin letters, numbers, and underscores.",
+        ["Память по умолчанию"] = "Default memory",
+        ["Минимум, МБ"] = "Minimum, MB",
+        ["Максимум, МБ"] = "Maximum, MB",
+        ["Поведение"] = "Behavior",
+        ["Показывать снапшоты Minecraft"] = "Show Minecraft snapshots",
+        ["Сворачивать лаунчер после запуска игры"] = "Minimize the launcher after game start",
+        ["Язык"] = "Language",
+        ["Язык интерфейса"] = "Interface language",
+        ["Русский"] = "Russian",
+        ["Английский"] = "English",
+        ["Моды и зависимости"] = "Mods and dependencies",
+        ["Настройте, какие зависимости устанавливать вместе с выбранным модом."] = "Choose which dependencies are installed with a selected mod.",
+        ["Устанавливать Fabric API в новые Fabric-сборки"] = "Install Fabric API in new Fabric instances",
+        ["Совместимая версия будет скачана с Modrinth сразу после создания сборки"] = "A compatible version will be downloaded from Modrinth after instance creation",
+        ["Автоскачивание зависимых модов"] = "Automatic dependency downloads",
+        ["Все"] = "All",
+        ["Только обязательные"] = "Required only",
+        ["Никакие"] = "None",
+        ["Режим «Все» включает обязательные и необязательные зависимости. Несовместимые зависимости никогда не устанавливаются."] = "All includes required and optional dependencies. Incompatible dependencies are never installed.",
+        ["Сохранить настройки"] = "Save settings",
+        ["Настройки сохранены."] = "Settings saved.",
+        ["Настройте игру и загрузчик"] = "Configure the game and mod loader",
+        ["ОФОРМЛЕНИЕ"] = "APPEARANCE",
+        ["Выбрать иконку"] = "Choose icon",
+        ["Название сборки"] = "Instance name",
+        ["Отдельная среда"] = "Isolated environment",
+        ["Миры, моды и настройки этой сборки будут храниться отдельно."] = "Worlds, mods, and settings for this instance are stored separately.",
+        ["Версия Minecraft"] = "Minecraft version",
+        ["Сначала выберите версию игры, затем загрузчик и его версию."] = "Select the game version, then the loader and its version.",
+        ["Поиск версии игры"] = "Search game versions",
+        ["Загрузчик"] = "Loader",
+        ["Без модов"] = "No mods",
+        ["Лёгкий"] = "Lightweight",
+        ["Классический"] = "Classic",
+        ["Современный"] = "Modern",
+        ["Модульный"] = "Modular",
+        ["Версия загрузчика"] = "Loader version",
+        ["Для Vanilla не требуется"] = "Not required for Vanilla",
+        ["Память"] = "Memory",
+        ["Файлы игры будут загружены при первом запуске."] = "Game files will be downloaded on first launch.",
+        ["Отмена"] = "Cancel",
+        ["Параметры сборки"] = "Instance settings",
+        ["Основное"] = "General",
+        ["Название"] = "Name",
+        ["Дополнительно"] = "Advanced",
+        ["Путь к Java (необязательно)"] = "Java path (optional)",
+        ["ID профиля запуска"] = "Launch profile ID",
+        ["Оставьте пустым для автоматической установки выбранного загрузчика."] = "Leave empty to install the selected loader automatically.",
+        ["Производительность"] = "Performance",
+        ["Минимум памяти, МБ"] = "Minimum memory, MB",
+        ["Максимум памяти, МБ"] = "Maximum memory, MB",
+        ["Сохранить"] = "Save",
+        ["Каталог контента"] = "Content catalog",
+        ["Название, автор или ключевые слова"] = "Name, author, or keywords",
+        ["Найти"] = "Search",
+        ["Тип контента"] = "Content type",
+        ["Категория"] = "Category",
+        ["Поддержка стороны"] = "Environment",
+        ["Сортировка"] = "Sort",
+        ["Сбросить фильтры"] = "Reset filters",
+        ["Загрузка каталога…"] = "Loading catalog…",
+        ["Загружаем каталог…"] = "Loading catalog…",
+        ["Ничего не найдено"] = "Nothing found",
+        ["Измените запрос или фильтры."] = "Change the query or filters.",
+        ["Показать ещё"] = "Show more",
+        ["Закрыть"] = "Close",
+        ["Закрыть описание"] = "Close details",
+        ["Обновить список"] = "Refresh list",
+        ["Открыть текущую папку"] = "Open current folder",
+        ["Показать файл в папке"] = "Show file in folder",
+        ["Удалить файл"] = "Delete file",
+        ["Страница проекта"] = "Project page",
+        ["Загрузка…"] = "Loading…",
+        ["Загружаем описание…"] = "Loading description…",
+        ["О проекте"] = "About",
+        ["Описание"] = "Description",
+        ["Зависимости"] = "Dependencies",
+        ["Галерея"] = "Gallery",
+        ["Ресурспаки"] = "Resource packs",
+        ["Шейдеры"] = "Shaders",
+        ["Скачанные наборы"] = "Downloaded packs",
+        ["Скачанный набор"] = "Downloaded pack",
+        ["Любая сторона"] = "Any environment",
+        ["Клиент"] = "Client",
+        ["Сервер"] = "Server",
+        ["Модпаки"] = "Modpacks",
+        ["Датапаки"] = "Data packs",
+        ["Мод"] = "Mod",
+        ["Модпак"] = "Modpack",
+        ["Ресурспак"] = "Resource pack",
+        ["Шейдер"] = "Shader",
+        ["Датапак"] = "Data pack",
+        ["По релевантности"] = "Relevance",
+        ["По загрузкам"] = "Downloads",
+        ["По популярности"] = "Popularity",
+        ["Недавно обновлённые"] = "Recently updated",
+        ["Сначала новые"] = "Newest first",
+        ["Все версии Minecraft"] = "All Minecraft versions",
+        ["Все загрузчики"] = "All loaders",
+        ["Все категории"] = "All categories",
+        ["Установить"] = "Install",
+        ["Скачать"] = "Download",
+        ["Включён"] = "Enabled",
+        ["Отключён"] = "Disabled",
+        ["Выключить"] = "Disable",
+        ["Включить"] = "Enable",
+        ["Релиз"] = "Release",
+        ["Снапшот"] = "Snapshot",
+        ["Не требуется"] = "Not required",
+        ["Не указана"] = "Not specified",
+        ["Нет совместимых версий"] = "No compatible versions",
+        ["Список недоступен"] = "List unavailable",
+        ["Готово"] = "Done",
+        ["Ожидание"] = "Waiting",
+        ["Подготовка"] = "Preparing",
+        ["Подготовка…"] = "Preparing…",
+        ["Запуск отменён"] = "Launch cancelled",
+        ["Отменено"] = "Cancelled",
+        ["Ошибка"] = "Error",
+        ["Установка Fabric API…"] = "Installing Fabric API…",
+        ["Fabric API установлен"] = "Fabric API installed",
+        ["Открываем Microsoft…"] = "Opening Microsoft…",
+        ["Продолжить с Microsoft"] = "Continue with Microsoft",
+        ["Войти с Microsoft"] = "Sign in with Microsoft",
+        ["Резервный список"] = "Fallback list",
+        ["Загрузка версий…"] = "Loading versions…",
+        ["Не удалось получить список"] = "Failed to load the list",
+        ["Поиск совместимого контента…"] = "Searching for compatible content…",
+        ["Не удалось выполнить поиск"] = "Search failed",
+        ["Нужен ключ CurseForge API"] = "CurseForge API key required",
+        ["Ключ не включён в эту сборку Orbit Launcher. Обратитесь к автору лаунчера."] = "This Orbit Launcher build does not include an API key. Contact the launcher author.",
+        ["Orbit Launcher столкнулся с ошибкой:"] = "Orbit Launcher encountered an error:",
+        ["Требуется аккаунт"] = "Account required",
+        ["Для запуска игры войдите в Microsoft-аккаунт, которому принадлежит Minecraft Java Edition. Библиотекой и настройками можно пользоваться без входа."] = "Sign in with the Microsoft account that owns Minecraft Java Edition to launch the game. You can use the library and settings without signing in.",
+        ["Другая сборка уже готовится к запуску."] = "Another instance is already being prepared for launch.",
+        ["Сначала выберите сборку."] = "Select an instance first.",
+        ["Удаление контента"] = "Delete content",
+        ["Удаление сборки"] = "Delete instance",
+        ["Microsoft Client ID не задан в конфигурации этой сборки. Обратитесь к автору лаунчера."] = "The Microsoft Client ID is not configured in this build. Contact the launcher author.",
+        ["Проверьте объём памяти: минимум от 512 МБ, максимум не меньше минимума."] = "Check the memory values: minimum 512 MB, and maximum must not be below minimum.",
+        ["Имя офлайн-игрока должно содержать от 3 до 16 латинских букв, цифр или знаков подчёркивания."] = "The offline player name must contain 3 to 16 Latin letters, numbers, or underscores.",
+        ["Не удалось открыть изображение."] = "Failed to open the image.",
+        ["Укажите название и выберите версию Minecraft."] = "Enter a name and select a Minecraft version.",
+        ["Выберите версию загрузчика. Если список пуст, эта версия Minecraft не поддерживается выбранным загрузчиком."] = "Select a loader version. If the list is empty, the selected loader does not support this Minecraft version.",
+        ["Проверьте объём памяти: минимум 512 МБ, максимум не меньше минимума."] = "Check the memory values: minimum 512 MB, and maximum must not be below minimum.",
+        ["Название и версия Minecraft не могут быть пустыми."] = "The name and Minecraft version cannot be empty.",
+        ["Выберите совместимую версию загрузчика."] = "Select a compatible loader version.",
+        ["Проверьте значения оперативной памяти."] = "Check the memory values.",
+        ["Сведения о проекте"] = "Project details",
+        ["Не удалось скачать проект."] = "Failed to download the project.",
+        ["Не удалось войти в Microsoft"] = "Failed to sign in with Microsoft",
+        ["Не удалось запустить Minecraft"] = "Failed to launch Minecraft",
+        ["Не удалось удалить сборку"] = "Failed to delete the instance",
+        ["Не удалось импортировать сборку"] = "Failed to import the instance",
+        ["Не удалось экспортировать сборку"] = "Failed to export the instance",
+        ["Не удалось дублировать сборку"] = "Failed to duplicate the instance",
+        ["Не удалось изменить состояние файла"] = "Failed to change the file state",
+        ["Не удалось удалить файл"] = "Failed to delete the file",
+        ["Загрузка"] = "Downloading",
+        ["Установлен"] = "Installed",
+        ["Скачан"] = "Downloaded"
+    };
+
+    private static readonly Lazy<IReadOnlyDictionary<string, string>> Russian = new(() =>
+        English.GroupBy(pair => pair.Value, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First().Key, StringComparer.Ordinal));
+
+    public static string CurrentLanguage { get; private set; } = "ru";
+    public static bool IsEnglish => CurrentLanguage == "en";
+
+    public static void SetLanguage(string? language)
+    {
+        CurrentLanguage = string.Equals(language, "en", StringComparison.OrdinalIgnoreCase) ? "en" : "ru";
+        var culture = CultureInfo.GetCultureInfo(CurrentLanguage == "en" ? "en-US" : "ru-RU");
+        CultureInfo.DefaultThreadCurrentUICulture = culture;
+    }
+
+    public static string Translate(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return text ?? string.Empty;
+        if (IsEnglish)
+        {
+            if (English.TryGetValue(text, out var translated))
+                return translated;
+        }
+        else
+        {
+            return Russian.Value.TryGetValue(text, out var translated) ? translated : text;
+        }
+
+        if (text.StartsWith("Доступно: ", StringComparison.Ordinal))
+            return "Available: " + text[10..];
+        if (text.StartsWith("Установка в: ", StringComparison.Ordinal))
+            return "Installing to: " + text[13..];
+        if (text.StartsWith("Модов: ", StringComparison.Ordinal))
+            return "Mods: " + text[7..];
+        if (text.StartsWith("Запуск: ", StringComparison.Ordinal))
+            return "Played: " + text[8..];
+        if (text.StartsWith("Обновлён ", StringComparison.Ordinal))
+            return "Updated " + text[9..];
+        if (text.StartsWith("Изменён ", StringComparison.Ordinal))
+            return "Modified " + text[8..];
+        return text;
+    }
+
+    public static MessageBoxResult Show(
+        Window owner,
+        string message,
+        string caption,
+        MessageBoxButton buttons,
+        MessageBoxImage image) =>
+        MessageBox.Show(owner, TranslateMessage(message), Translate(caption), buttons, image);
+
+    public static string TranslateMessage(string message)
+    {
+        if (!IsEnglish)
+            return Translate(message);
+        if (English.TryGetValue(message, out var exact))
+            return exact;
+
+        var separator = message.IndexOf("\n\n", StringComparison.Ordinal);
+        if (separator >= 0)
+            return TranslateMessage(message[..separator]) + message[separator..];
+        if (message.StartsWith("Удалить файл «", StringComparison.Ordinal))
+            return "Delete file “" + message[14..].Replace('»', '”');
+        if (message.StartsWith("Не удалось изменить состояние файлов: ", StringComparison.Ordinal))
+            return "Failed to change file state: " + message[37..];
+        if (message.StartsWith("Добавлено файлов: ", StringComparison.Ordinal))
+            return message.Replace("Добавлено файлов:", "Files added:", StringComparison.Ordinal)
+                .Replace("Пропущено:", "Skipped:", StringComparison.Ordinal);
+        return Translate(message);
+    }
+
+    public static void Apply(DependencyObject root)
+    {
+        var visited = new HashSet<DependencyObject>(ReferenceEqualityComparer.Instance);
+        ApplyCore(root, visited);
+    }
+
+    private static void ApplyCore(DependencyObject current, HashSet<DependencyObject> visited)
+    {
+        if (!visited.Add(current))
+            return;
+
+        switch (current)
+        {
+            case Window window:
+                window.Title = Translate(window.Title);
+                break;
+            case TextBlock textBlock when !BindingOperations.IsDataBound(textBlock, TextBlock.TextProperty):
+                textBlock.Text = Translate(textBlock.Text);
+                break;
+            case TextBox textBox when !BindingOperations.IsDataBound(textBox, TextBox.TextProperty):
+                textBox.Text = Translate(textBox.Text);
+                break;
+            case HeaderedContentControl headered when headered.Header is string header:
+                headered.Header = Translate(header);
+                break;
+            case HeaderedItemsControl headeredItems when headeredItems.Header is string header:
+                headeredItems.Header = Translate(header);
+                break;
+            case ContentControl contentControl when contentControl.Content is string content
+                                                    && !BindingOperations.IsDataBound(contentControl, ContentControl.ContentProperty):
+                contentControl.Content = Translate(content);
+                break;
+        }
+
+        if (current is FrameworkElement element)
+        {
+            if (element.ToolTip is string toolTip)
+                element.ToolTip = Translate(toolTip);
+            if (element.ContextMenu is not null)
+                ApplyCore(element.ContextMenu, visited);
+        }
+
+        foreach (var child in LogicalTreeHelper.GetChildren(current).OfType<DependencyObject>())
+            ApplyCore(child, visited);
+
+        if (current is Visual or System.Windows.Media.Media3D.Visual3D)
+        {
+            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(current); index++)
+                ApplyCore(VisualTreeHelper.GetChild(current, index), visited);
+        }
+    }
+}
