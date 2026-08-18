@@ -1,6 +1,6 @@
 # Orbit Launcher
 
-> Современный Minecraft Java Launcher для Windows с отдельными сборками, каталогом Modrinth и CurseForge и космическим интерфейсом.
+> Современный Minecraft Java Launcher для Windows с отдельными сборками, каталогом Modrinth и CurseForge и темно-космическим интерфейсом.
 
 ![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4?logo=windows11&logoColor=white)
