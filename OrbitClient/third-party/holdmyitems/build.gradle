@@ -1,0 +1,18 @@
+plugins { id 'net.fabricmc.fabric-loom' }
+version = '5.1.2+26.2-orbit.2'
+group = 'com.holdmylua'
+base { archivesName = 'holdmyitems' }
+dependencies {
+    minecraft 'com.mojang:minecraft:26.2'
+    implementation 'net.fabricmc:fabric-loader:0.19.3'
+    implementation 'net.fabricmc.fabric-api:fabric-api:0.158.0+26.2'
+    implementation files('libs/luaj-jse-3.0.1.jar')
+}
+java { sourceCompatibility = JavaVersion.VERSION_25; targetCompatibility = JavaVersion.VERSION_25 }
+tasks.withType(JavaCompile).configureEach { options.release = 25; options.encoding = 'UTF-8' }
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}
+tasks.withType(Jar).configureEach { preserveFileTimestamps = false; reproducibleFileOrder = true }
+jar { from('ORBIT-PORT.md') }

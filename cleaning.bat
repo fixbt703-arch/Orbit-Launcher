@@ -23,6 +23,7 @@ echo This will remove:
 echo   - Microsoft account data and the CmlLib token cache;
 echo   - settings.json and the Orbit Launcher cache;
 echo   - locally saved skin library;
+echo   - legacy plugin files and locally collected analytics, if present;
 echo   - every local Orbit Launcher Minecraft instance;
 echo   - bin, obj, dist, installer-staging, .tools and .vs;
 echo   - temporary Orbit Launcher import files.
@@ -53,7 +54,10 @@ if exist "%APP_DATA%\settings.json" del /F /Q "%APP_DATA%\settings.json"
 if exist "%MSAL_CACHE%" del /F /Q "%MSAL_CACHE%"
 if exist "%APP_DATA%\cache" rmdir /S /Q "%APP_DATA%\cache"
 if exist "%APP_DATA%\skins" rmdir /S /Q "%APP_DATA%\skins"
+if exist "%APP_DATA%\plugins" rmdir /S /Q "%APP_DATA%\plugins"
+if exist "%APP_DATA%\plugin-data" rmdir /S /Q "%APP_DATA%\plugin-data"
 if exist "%APP_DATA%\instances" rmdir /S /Q "%APP_DATA%\instances"
+if exist "%APP_DATA%\minecraft" rmdir /S /Q "%APP_DATA%\minecraft"
 if exist "%IMPORT_TEMP%" rmdir /S /Q "%IMPORT_TEMP%"
 
 echo [3/4] Removing build output...

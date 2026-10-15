@@ -8,7 +8,7 @@ internal static partial class AppConfiguration
 {
     private sealed class Values
     {
-        public string MicrosoftClientId { get; set; } = string.Empty;
+        public string MicrosoftClientId { get; set; } = "0df6579a-f033-4283-97ae-83b4ff0d6cee";
         public string CurseForgeApiKey { get; set; } = string.Empty;
     }
 

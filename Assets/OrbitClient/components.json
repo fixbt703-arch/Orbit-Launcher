@@ -1,0 +1,59 @@
+[
+  {
+    "name": "Fabric API",
+    "projectId": "P7dR8mSH",
+    "modId": "fabric-api",
+    "fileName": "fabric-api-0.159.0+26.2.jar",
+    "url": "https://cdn.modrinth.com/data/P7dR8mSH/versions/BgeCGgGZ/fabric-api-0.159.0%2B26.2.jar",
+    "sha512": "4d5d9c3daafe19be187f638f2d6de3db26420b8720ef5a266cfa81f79d9019cab8c86e6d47478bbb0b0ee0b8f769204b72c843caa2e4aabd94adc41f3dafb518"
+  },
+  {
+    "name": "Sodium",
+    "projectId": "AANobbMI",
+    "modId": "sodium",
+    "fileName": "sodium-fabric-0.9.1+mc26.2.jar",
+    "url": "https://cdn.modrinth.com/data/AANobbMI/versions/2Yom1N68/sodium-fabric-0.9.1%2Bmc26.2.jar",
+    "sha512": "627fbf9625a4b94693c789c84a0686ffe558c0b1ecbeccf2602a903caafa9e126548b644282aa9c391dc798930d378724a383bea6b4397c5294d59ba5c0a6936"
+  },
+  {
+    "name": "Lithium",
+    "projectId": "gvQqBUqZ",
+    "modId": "lithium",
+    "fileName": "lithium-fabric-0.25.3+mc26.2.jar",
+    "url": "https://cdn.modrinth.com/data/gvQqBUqZ/versions/f7vZ0VWU/lithium-fabric-0.25.3%2Bmc26.2.jar",
+    "sha512": "148b638f3c6229fbaf487120a2344a0af5e411a5aa6533d5db9d75da0a8c0d8304f63eb4cca13f4d03b2c9b4c23d559dd74c1d832422ef8a3087bd005e62a8bd"
+  },
+  {
+    "name": "FerriteCore",
+    "projectId": "uXXizFIs",
+    "modId": "ferritecore",
+    "fileName": "ferritecore-9.0.0-fabric.jar",
+    "url": "https://cdn.modrinth.com/data/uXXizFIs/versions/d5ddUdiB/ferritecore-9.0.0-fabric.jar",
+    "sha512": "d81fa97e11784c19d42f89c2f433831d007603dd7193cee45fa177e4a6a9c52b384b198586e04a0f7f63cd996fed713322578bde9a8db57e1188854ae5cbe584"
+  },
+  {
+    "name": "Entity Culling",
+    "projectId": "NNAgCjsB",
+    "modId": "entityculling",
+    "fileName": "entityculling-fabric-1.10.5-mc26.2.jar",
+    "url": "https://cdn.modrinth.com/data/NNAgCjsB/versions/iiF6U3Ne/entityculling-fabric-1.10.5-mc26.2.jar",
+    "sha512": "338813c344a2d924abbaaf249da2b52f5e162bd92407f3099c6ff1bce1c1efecde9df80efcc7b4de3b3a0044cc5735b96594b04da4594bb26793459fc6c960a6"
+  },
+  {
+    "name": "ImmediatelyFast",
+    "projectId": "5ZwdcRci",
+    "modId": "immediatelyfast",
+    "fileName": "ImmediatelyFast-Fabric-1.16.4+26.2.jar",
+    "url": "https://cdn.modrinth.com/data/5ZwdcRci/versions/vkW9vHhp/ImmediatelyFast-Fabric-1.16.4%2B26.2.jar",
+    "sha512": "b8b375e6d47acd6051fc7110065d0a18b59db584eb68699652ced212ea0a9b2b9a78d2f791f641ab3547e0ca56b51e0af7c60c1164b4d38910d9aa94e45241c0"
+  },
+  {
+    "name": "Skin Layers 3D",
+    "projectId": "zV5r3pPn",
+    "modId": "skinlayers3d",
+    "fileName": "skinlayers3d-fabric-1.11.3-mc26.2.jar",
+    "url": "https://cdn.modrinth.com/data/zV5r3pPn/versions/AfYGPfcD/skinlayers3d-fabric-1.11.3-mc26.2.jar",
+    "sha512": "552bafff617fec708739faeb0a94001f5180aced60dc298710b9217893c3b7448c5acfed926f31d162978b4532e7d85a4887e8128bc6579c48a7e7a55aab79c2",
+    "required": true
+  }
+]

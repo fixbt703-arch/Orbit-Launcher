@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "orbit_client",
+  "version": "0.18.4",
+  "name": "Orbit Client",
+  "icon": "assets/orbit_client/textures/gui/sprites/ui/icons/logo.png",
+  "description": "Configurable PvP HUD, extended chunk rendering and a space-inspired client menu for Orbit Launcher.",
+  "authors": [
+    "Orbit Launcher contributors"
+  ],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "org.orbitlauncher.client.OrbitClient"
+    ]
+  },
+  "mixins": [
+    "orbit-client.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "26.2",
+    "java": ">=25",
+    "fabric-api": ">=0.158.0",
+    "skinlayers3d": ">=1.11.3",
+    "holdmyitems": "*"
+  }
+}

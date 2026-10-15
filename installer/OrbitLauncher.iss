@@ -1,7 +1,10 @@
 #define AppName "Orbit Launcher"
 #define AppExeName "OrbitLauncher.exe"
 #define AppPublisher "Orbit Launcher"
-#define AppVersion GetFileVersion("..\installer-staging\OrbitLauncher.exe")
+#ifndef OrbitBuildDir
+  #define OrbitBuildDir SourcePath + "..\installer-staging"
+#endif
+#define AppVersion GetFileVersion(OrbitBuildDir + "\OrbitLauncher.exe")
 
 [Setup]
 AppId={{3FEAE432-8BE8-4E8C-A0F3-DB99A41F981B}
@@ -21,8 +24,8 @@ DisableProgramGroupPage=yes
 AllowNoIcons=yes
 LicenseFile=..\LICENSE
 OutputDir=..\dist
-OutputBaseFilename=OrbitLauncher-installer
-SetupIconFile=..\Assets\OrbitLauncher.ico
+OutputBaseFilename=OrbitLauncherInstaler
+SetupIconFile=..\app.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName}
 Compression=lzma2/ultra64
@@ -53,7 +56,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\installer-staging\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#OrbitBuildDir}\OrbitLauncher.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 
 [Icons]

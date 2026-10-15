@@ -118,7 +118,7 @@ public sealed class CurseForgeService
         {
             using var descriptionDocument = await GetJsonAsync($"{_apiBase}/mods/{Uri.EscapeDataString(result.ProjectId)}/description", cancellationToken);
             description = descriptionDocument.RootElement.TryGetProperty("data", out var body) && body.ValueKind == JsonValueKind.String
-                ? CleanHtml(body.GetString() ?? string.Empty)
+                ? body.GetString() ?? string.Empty
                 : "Описание отсутствует.";
         }
         catch (HttpRequestException)
@@ -157,7 +157,6 @@ public sealed class CurseForgeService
             Author = authors,
             IconUrl = project.TryGetProperty("logo", out var logo) && logo.ValueKind == JsonValueKind.Object ? StringValue(logo, "url", StringValue(logo, "thumbnailUrl", result.IconUrl)) : result.IconUrl,
             Downloads = LongValue(project, "downloadCount", result.Downloads),
-            Followers = LongValue(project, "thumbsUpCount"),
             UpdatedAt = DateValue(project, "dateModified") ?? result.DateModified,
             License = "Не указана",
             SourceUrl = links.ValueKind == JsonValueKind.Object ? StringValue(links, "sourceUrl") : string.Empty,
@@ -178,7 +177,8 @@ public sealed class CurseForgeService
         string selectedLoader,
         string dependencyDownloadMode,
         IProgress<double>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? selectedFileId = null)
     {
         EnsureConfigured();
         var gameVersion = project.ProjectType == "modpack" && selectedGameVersion.Length > 0 ? selectedGameVersion : instance.GameVersion;
@@ -196,14 +196,16 @@ public sealed class CurseForgeService
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var installed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var mode = dependencyDownloadMode is "all" or "none" ? dependencyDownloadMode : "required";
-            var path = await InstallModProjectAsync(project.ProjectId, instance, loader, mode, visited, installed, progress, cancellationToken);
+            var path = await InstallModProjectAsync(project.ProjectId, instance, loader, mode, visited, installed, progress, cancellationToken, selectedFileId);
             var dependencyCount = Math.Max(0, installed.Count - 1);
             var dependencyText = dependencyCount > 0 ? $" Зависимостей установлено: {dependencyCount}." : string.Empty;
             return new ModDownloadResult(path, $"Мод установлен в сборку «{instance.Name}».{dependencyText}", true);
         }
 
-        using var filesDocument = await GetCompatibleFilesAsync(project.ProjectId, gameVersion, loader, cancellationToken);
-        var file = SelectBestFile(filesDocument.RootElement);
+        using var filesDocument = selectedFileId is null
+            ? await GetCompatibleFilesAsync(project.ProjectId, gameVersion, loader, cancellationToken)
+            : await GetJsonAsync($"{_apiBase}/mods/{Uri.EscapeDataString(project.ProjectId)}/files/{selectedFileId}", cancellationToken);
+        var file = selectedFileId is null ? SelectBestFile(filesDocument.RootElement) : filesDocument.RootElement.GetProperty("data");
         if (file.ValueKind != JsonValueKind.Object)
             throw new InvalidOperationException("Для выбранной версии Minecraft нет совместимого файла.");
         var destination = DestinationDirectory(project.ProjectType, instance);
@@ -213,7 +215,7 @@ public sealed class CurseForgeService
         {
             "resourcepack" => new ModDownloadResult(installedPath, $"Ресурспак установлен в сборку «{instance.Name}».", true),
             "shader" => new ModDownloadResult(installedPath, $"Шейдер установлен в сборку «{instance.Name}».", true),
-            "datapack" => new ModDownloadResult(installedPath, "Датапак скачан. Переместите ZIP в папку datapacks нужного мира.", false),
+            "datapack" => new ModDownloadResult(installedPath, "Датапак скачан. При следующем запуске игры он появится в меню датапаков при создании мира.", false),
             "modpack" => new ModDownloadResult(installedPath, "Модпак скачан в папку загрузок сборки.", false),
             _ => new ModDownloadResult(installedPath, "Файл скачан.", false)
         };
@@ -227,15 +229,18 @@ public sealed class CurseForgeService
         HashSet<string> visited,
         HashSet<string> installed,
         IProgress<double>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? selectedFileId = null)
     {
         if (!visited.Add(projectId))
             return string.Empty;
         var completed = false;
         try
         {
-            using var filesDocument = await GetCompatibleFilesAsync(projectId, instance.GameVersion, loader, cancellationToken);
-            var file = SelectBestFile(filesDocument.RootElement);
+            using var filesDocument = selectedFileId is null
+                ? await GetCompatibleFilesAsync(projectId, instance.GameVersion, loader, cancellationToken)
+                : await GetJsonAsync($"{_apiBase}/mods/{Uri.EscapeDataString(projectId)}/files/{selectedFileId}", cancellationToken);
+            var file = selectedFileId is null ? SelectBestFile(filesDocument.RootElement) : filesDocument.RootElement.GetProperty("data");
             if (file.ValueKind != JsonValueKind.Object)
                 throw new InvalidOperationException("У мода или одной из его зависимостей нет совместимого файла для этой сборки.");
 
@@ -271,14 +276,57 @@ public sealed class CurseForgeService
         }
     }
 
-    private async Task<JsonDocument> GetCompatibleFilesAsync(string projectId, string gameVersion, string loader, CancellationToken cancellationToken)
+    private async Task<JsonDocument> GetCompatibleFilesAsync(string projectId, string gameVersion, string loader, CancellationToken cancellationToken, int index = 0)
     {
-        var query = new List<string> { "pageSize=50" };
+        var query = new List<string> { "pageSize=50", $"index={index}" };
         if (!string.IsNullOrWhiteSpace(gameVersion))
             query.Add($"gameVersion={Uri.EscapeDataString(gameVersion)}");
         if (LoaderType(loader) is var loaderType && loaderType > 0)
             query.Add($"modLoaderType={loaderType}");
         return await GetJsonAsync($"{_apiBase}/mods/{Uri.EscapeDataString(projectId)}/files?{string.Join('&', query)}", cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<CatalogVersion>> GetProjectVersionsAsync(
+        string projectId, string gameVersion, string loader, CancellationToken cancellationToken = default)
+    {
+        var result = new List<CatalogVersion>();
+        for (var index = 0; index < 300; index += 50)
+        {
+            using var document = await GetCompatibleFilesAsync(projectId, gameVersion, loader, cancellationToken, index);
+            if (!document.RootElement.TryGetProperty("data", out var files) || files.GetArrayLength() == 0)
+                break;
+            foreach (var file in files.EnumerateArray())
+            {
+                if (file.TryGetProperty("isAvailable", out var available) && !available.GetBoolean())
+                    continue;
+                var gameVersions = file.TryGetProperty("gameVersions", out var values)
+                    ? values.EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray() : [];
+                var loaders = gameVersions.Where(value => LoaderType(value) > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                result.Add(new CatalogVersion(
+                    file.GetProperty("id").GetInt32().ToString(),
+                    StringValue(file, "displayName", StringValue(file, "fileName")),
+                    StringValue(file, "fileName"),
+                    file.TryGetProperty("releaseType", out var release) ? release.GetInt32() switch { 1 => "release", 2 => "beta", 3 => "alpha", _ => "release" } : "release",
+                    DateValue(file, "fileDate"),
+                    gameVersions.Where(value => Regex.IsMatch(value, @"^\d+(?:\.\d+)+$")).ToArray(),
+                    loaders));
+            }
+            if (files.GetArrayLength() < 50)
+                break;
+        }
+        return result.OrderByDescending(item => item.PublishedAt).ToArray();
+    }
+
+    /// <summary>Downloads one catalog file into a caller-owned staging directory for verified replacement.</summary>
+    public async Task<string> DownloadFileForRepairAsync(string projectId, int fileId, string stagingDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        using var document = await GetJsonAsync($"{_apiBase}/mods/{Uri.EscapeDataString(projectId)}/files/{fileId}", cancellationToken);
+        var file = document.RootElement.GetProperty("data");
+        if (file.ValueKind != JsonValueKind.Object || !file.TryGetProperty("id", out var id) || id.GetInt32() != fileId)
+            throw new InvalidDataException("CurseForge вернул другой файл.");
+        Directory.CreateDirectory(stagingDirectory);
+        return await DownloadFileEntryAsync(projectId, file, stagingDirectory, null, cancellationToken);
     }
 
     private async Task<IReadOnlyList<ModDependencyInfo>> ResolveDependenciesAsync(JsonElement file, CancellationToken cancellationToken)
@@ -437,7 +485,12 @@ public sealed class CurseForgeService
             IconUrl = logo.ValueKind == JsonValueKind.Object ? StringValue(logo, "url", StringValue(logo, "thumbnailUrl")) : string.Empty,
             ProjectType = projectType,
             DateModified = DateValue(project, "dateModified"),
-            Downloads = LongValue(project, "downloadCount")
+            Downloads = LongValue(project, "downloadCount"),
+            Categories = project.TryGetProperty("categories", out var categories) && categories.ValueKind == JsonValueKind.Array
+                ? categories.EnumerateArray().Select(item => StringValue(item, "name")).Where(name => name.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToList()
+                : [],
+            Loaders = projectType is "mod" or "modpack" ? ProjectLoaders(project) : []
         };
     }
 
@@ -515,16 +568,6 @@ public sealed class CurseForgeService
 
     private static DateTime? DateValue(JsonElement element, string property) =>
         element.ValueKind == JsonValueKind.Object && element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String && value.TryGetDateTime(out var result) ? result : null;
-
-    private static string CleanHtml(string html)
-    {
-        if (string.IsNullOrWhiteSpace(html))
-            return "Описание отсутствует.";
-        var text = Regex.Replace(html, @"(?i)<br\s*/?>|</p>|</h[1-6]>|</li>", "\n");
-        text = Regex.Replace(text, @"<[^>]+>", string.Empty);
-        text = Regex.Replace(text, @"\n{3,}", "\n\n");
-        return WebUtility.HtmlDecode(text).Trim();
-    }
 
     private static string SanitizeFileName(string fileName)
     {

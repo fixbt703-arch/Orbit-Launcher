@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "holdmyitems",
+  "version": "${version}",
+  "name": "Hold My Items",
+  "description": "Original Hold My Items animations, ported to 26.2 and integrated with Orbit Client.",
+  "authors": [
+    "sapling"
+  ],
+  "contact": {
+    "homepage": "https://modrinth.com/mod/hold-my-items",
+    "sources": "https://github.com/ThinkofRain1213/HMI-26.2"
+  },
+  "license": "CC0-1.0",
+  "icon": "assets/holdmyitems/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      "com.holdmylua.source.LuaTestHMI"
+    ]
+  },
+  "mixins": [
+    "holdmyitems.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~26.2",
+    "java": ">=25",
+    "fabric-api": "*"
+  },
+  "jars": [
+    {
+      "file": "META-INF/jars/luaj-jse-3.0.1.jar"
+    }
+  ],
+  "contributors": [
+    "ThinkofRain1213 (26.2 port)",
+    "Orbit Launcher contributors (integration)"
+  ]
+}

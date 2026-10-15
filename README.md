@@ -1,231 +1,68 @@
 # Orbit Launcher
 
-> Современный Minecraft Java Launcher для Windows с отдельными сборками, каталогом Modrinth и CurseForge и космическим интерфейсом.
+WPF launcher for Windows with Fabric, Forge, NeoForge and Quilt instances, mod catalogs, mod compatibility repair, Microsoft accounts and skins.
 
-![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)
-![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4?logo=windows11&logoColor=white)
-![License MIT](https://img.shields.io/badge/license-MIT-7C5CFC)
+## Build
 
-Orbit Launcher помогает создавать изолированные сборки Minecraft, устанавливать загрузчики и контент, управлять модами и запускать игру из одного аккуратного интерфейса. Регистрация для просмотра и настройки лаунчера не требуется — Microsoft-аккаунт можно подключить позднее.
+Requires .NET SDK 8 for Windows. Run `build.bat` to replace `dist/OrbitLauncher.exe` with a self-contained Windows x64 executable.
 
-## Возможности
+## Source and release packaging
 
-### Сборки Minecraft
+Personal publication scripts are excluded from open source. Public snapshots use
+an explicit file allowlist and reject local credentials, account data, runtime
+files and EXE files. Microsoft application IDs are public configuration, not
+account credentials. Git history containing private configuration must be cleaned
+before the repository is made public; deleting a file in a later commit alone
+does not remove older versions.
 
-- отдельные папки для версий, модов, настроек и миров;
-- создание, редактирование, переименование, копирование и удаление сборок;
-- импорт и экспорт сборок в ZIP;
-- собственная иконка, объём памяти и путь к Java для каждой сборки;
-- Vanilla, Fabric, Forge, NeoForge и Quilt;
-- отдельный выбор версии загрузчика после выбора версии Minecraft;
-- автоматическая загрузка Minecraft и подходящей Java через CmlLib.
-
-### Контент
-
-- переключение каталога между Modrinth и CurseForge;
-- моды, шейдеры, ресурспаки, модпаки и датапаки;
-- поиск, категории, сортировка, версия Minecraft и загрузчик;
-- подробная страница проекта с описанием, галереей и зависимостями;
-- автоматическая установка обязательных или всех зависимостей;
-- автоматическая установка совместимого Fabric API при создании Fabric-сборки;
-- проверка контрольных сумм загруженных файлов;
-- включение, отключение и удаление установленного контента.
-
-### Интерфейс и аккаунт
-
-- тёмная космическая тема и единый набор элементов управления;
-- русский и английский интерфейс с переключением в настройках;
-- выбор фона главного окна: стандартный, Village, Water, Ghast, Forest, Cave, Fight или Nether;
-- настраиваемые затемнение фонового изображения и прозрачность панелей;
-- Microsoft/Xbox-вход через системный браузер;
-- восстановление сессии и отображение головы скина;
-- доступ к библиотеке и настройкам до входа в аккаунт;
-- офлайн-режим и имя локального игрока в обычных настройках.
-- изображения каталога хранятся только в памяти открытого окна и не занимают место после закрытия.
-
-## Системные требования
-
-| Компонент | Требование |
-|---|---|
-| ОС | Windows 10 1809 или новее, x64 |
-| Сборка из исходников | .NET 8 SDK |
-| Готовый EXE/Installer | .NET устанавливать не требуется |
-| Интернет | Нужен для входа, установки игры, загрузчиков и контента |
-| Minecraft | Для обычного запуска требуется лицензионная Minecraft Java Edition |
-
-## Быстрый старт
-
-1. Скачайте `OrbitLauncher-installer.exe` со страницы Releases.
-2. Запустите установщик и выберите папку установки.
-3. При желании создайте ярлык на рабочем столе.
-4. Откройте Orbit Launcher и создайте первую сборку.
-5. Для лицензионного запуска войдите в Microsoft в интерфейсе лаунчера.
-
-> Если неподписанная тестовая сборка показывает SmartScreen, проверьте источник и контрольную сумму файла. Для публичных релизов рекомендуется Authenticode-подпись или публикация через Microsoft Store.
-
-## Конфигурация сервисов
-
-Служебные адреса API находятся в `Utilities/AppConfiguration.cs` и не показываются обычному пользователю. Client ID и CurseForge API key подключаются через локальный файл `Utilities/AppConfiguration.Local.cs`, который компилируется в EXE, но исключён из Git.
-
-1. Скопируйте `Utilities/AppConfiguration.Local.cs.example` в `Utilities/AppConfiguration.Local.cs`.
-2. Укажите свои значения в созданном файле.
-3. Соберите EXE или Installer.
-
-> Не удаляйте `Utilities/AppConfiguration.Local.cs` на компьютере, где собираете рабочий релиз. Не добавляйте этот файл в публичный репозиторий.
-
-### Microsoft Client ID
-
-Для лицензионного входа нужен идентификатор публичного приложения Microsoft Entra:
-
-1. зарегистрируйте приложение по [инструкции CmlLib](https://cmllib.github.io/CmlLib.Core-wiki/en/auth.microsoft/xboxauthnet.game.msal/clientid/);
-2. разрешите public client flow;
-3. настройте redirect URI `http://localhost`;
-4. вставьте Application (client) ID в `Utilities/AppConfiguration.Local.cs`.
-
-Client ID идентифицирует приложение, но не содержит Microsoft-сессию пользователя. Каждый игрок входит под собственным аккаунтом.
-
-### CurseForge API
-
-Modrinth работает без ключа. Для CurseForge требуется API key, выданный для приложения или стороннего лаунчера. Укажите его в `Utilities/AppConfiguration.Local.cs` перед сборкой.
-
-Не публикуйте рабочий API key в открытом репозитории. Секрет, помещённый в настольное приложение, технически можно извлечь; для публичного проекта безопаснее использовать собственный серверный прокси с ограничениями и квотами.
-
-## Сборка переносимого EXE
-
-Установите [.NET 8 SDK для Windows x64](https://dotnet.microsoft.com/download/dotnet/8.0), затем запустите:
-
-```bat
-build.bat
-```
-
-Результат:
-
-```text
-dist\OrbitLauncher.exe
-```
-
-Это self-contained single-file сборка без внутреннего сжатия: пользователю не нужен установленный .NET Runtime, а файл меньше похож на исполняемый упаковщик для антивирусных эвристик.
-
-## Сборка установщика
-
-Установите:
-
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0);
-- [Inno Setup 7 x64](https://jrsoftware.org/isdl.php) — также поддерживается Inno Setup 6.
-
-Inno Setup можно установить через `winget`:
+To create an installer and a separate source package, run:
 
 ```powershell
-winget install --id JRSoftware.InnoSetup.7 -e -s winget -i
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\Build-GitHub.ps1
 ```
 
-После этого запустите:
+The output is the sibling `OrbitLauncher-GitHub` folder: `source/` contains public
+code; `release/OrbitLauncherInstaler.exe` belongs in GitHub Releases. This operation
+does not publish to GitHub. It requires .NET SDK 8, Inno Setup 7, local service
+configuration and API connectivity. Its build uses `Utilities/AppConfiguration.Local.cs`
+only for the installer; the file and temporary project reference are excluded
+from source. The actual embedded application and a live CurseForge request are
+verified before packaging. Embedded desktop keys can be extracted from binaries.
+A failed build preserves the previous marked export. Do not store personal files
+in that generated folder, and do not run `cleaning.bat` to publish.
 
-```bat
-installer-build.bat
-```
+To build the open-source launcher yourself, copy
+`Utilities/AppConfiguration.Local.cs.example` to `Utilities/AppConfiguration.Local.cs`
+and supply your own application credentials. This private file is git-ignored.
 
-Результат:
+For changes to the Minecraft mod, run `client-build.bat` first, then `build.bat`. Orbit Client targets Minecraft 26.2, Fabric Loader 0.19.3+ and Java 25+. Its source is in `OrbitClient/`, and its bundled JAR is in `Assets/OrbitClient/`.
 
-```text
-dist\OrbitLauncher-installer.exe
-```
+Run launcher checks with `dotnet run --project Tests/OrbitLauncher.Tests.csproj -c Release`.
 
-Установщик:
+Catalog regression check: append three pages in both sources, scroll through the actual WPF cards and resize the window with `dotnet run --project Tests/OrbitLauncher.Tests.csproj -c Release -- --catalog-pagination`. The optional `--probe-curseforge` checks two pages and their icons against the live service using local build configuration.
 
-- использует современный светлый или тёмный стиль Windows;
-- поддерживает русский и английский языки;
-- устанавливает приложение без обязательного запроса UAC;
-- позволяет выбрать установку для текущего или всех пользователей;
-- создаёт ярлык в меню «Пуск»;
-- предлагает ярлык на рабочем столе;
-- показывает лицензию MIT;
-- поддерживает обновление поверх предыдущей версии;
-- добавляет штатное удаление через «Установленные приложения» Windows;
-- не удаляет сборки, миры, аккаунты и настройки пользователя при деинсталляции.
+## Orbit Client 0.14.0
 
-### Цифровая подпись
+Hold My Items replaces Flair in the PvP filter. Enable it in Right Shift → PvP and hold **R** to inspect items using the original animation pack. Settings include main/off hand rendering, hand visibility, scale, XYZ position, motion intensity, 3D blocks, particles, camera motion and vanilla animations outside inspection. With that option enabled, idle, attacks, item use and their recovery use the native renderer; only holding R starts Hold My Items. Switching renderers clears Lua/model/camera state to prevent animation mixing. Q and F retain their normal actions. Existing Flair enabled state and the inspection key are migrated.
 
-`build.bat` и `installer-build.bat` автоматически подписывают результаты, если перед запуском задать сертификат:
+Original mod: [Hold My Items by sapling](https://modrinth.com/mod/hold-my-items), original download 5.1.1 for 1.21.11 (Modrinth version KZm1qTcU). The downloaded JAR explicitly licenses the code/resources as CC0-1.0. The bundled component is compiled from the [unofficial 26.2 port by ThinkofRain1213](https://github.com/ThinkofRain1213/HMI-26.2), commit dfdd72e7349f0b87f7ebd4ffae3f18fff8611c82, with original Lua animations/models and Orbit configuration integration. Source and notices are in `OrbitClient/third-party/holdmyitems`; its JAR and LuaJ runtime are nested inside Orbit Client. It is an unofficial integration, not an author release. `OrbitClient/gradlew.bat :runClient -PorbitHmiSmoke` checks live rendering, toggles, input gating, persistence and settings layouts in an isolated test world.
 
-```bat
-set ORBIT_SIGN_PFX=C:\Certificates\orbit-launcher.pfx
-set ORBIT_SIGN_PASSWORD=пароль-сертификата
-set ORBIT_TIMESTAMP_URL=http://timestamp.digicert.com
-installer-build.bat
-```
+The client menu, HUD settings, crosshair lists and component list use clipped, smooth vertical scrolling. Mouse wheel, scrollbar dragging and Page Up/Down are supported. Colors follow the launcher palette; borders are drawn within the same bounds as their surfaces.
 
-Также поддерживается сертификат из хранилища Windows через переменную `ORBIT_SIGN_SHA1`. Для подписи нужен `signtool.exe` из Windows SDK.
+Stack Refill replaces only the exact block and item components after its last placement, through the normal server-synchronized inventory swap. Enchantment Glow (previously Glint Colorizer) retains item/armor recoloring and adds an independently implemented enchanted-item contour. Outline settings include a separate RGB color or matching the glint, opacity, width, a soft halo, rainbow cycling and gentle pulsing. First-person, third-person and inventory visibility are independent. The contour follows opaque texture pixels on baked item models, respects depth, and follows Hold My Items poses. Resource reloads invalidate cached contours. Module settings contain controls only; descriptions remain on the module catalog cards, and empty settings tabs are hidden. Hitbox provides normal/target colors, opacity, line width, solid/corner/dashed outlines, fill, eye level, look direction, entity filters and distance.
 
-Самоподписанный сертификат подходит только для локального тестирования. По данным [Microsoft о репутации SmartScreen](https://learn.microsoft.com/windows/apps/package-and-deploy/smartscreen-reputation), новый неподписанный файл начинает без репутации при каждом обновлении. Наиболее надёжные варианты — постоянная доверенная подпись, Artifact Signing или Microsoft Store. Ложное обнаружение именно как вредоносного файла можно отправить на [проверку Microsoft Security Intelligence](https://www.microsoft.com/wdsi/filesubmission).
+Hitbox settings are grouped into General, Appearance, Target and Visibility, with smooth scrolling. Appearance includes independent top/bottom/vertical edges, corner length, dash divisions, custom fill color, look-vector length and arrow, a health-based color gradient, allied color and damage flash. The target can override line width, outline style and fill. Visibility includes minimum/maximum distance, distance fade, camera perspective, hiding menus/allies, and conditions for holding a melee weapon or sneaking. Allies use Minecraft's scoreboard teams. Target highlighting takes precedence over damage, allied and health colors; damage takes precedence over allied and health colors. These settings change only visualization, never collision bounds or attack reach.
 
-## Очистка перед публикацией
+Target highlighting and the target-only filter use Minecraft's actual entity hit result and the held item's attack range. Distant entities retain their normal appearance; showing hitboxes through obstacles does not make obstructed entities eligible for target highlighting.
 
-Запустите `cleaning.bat` и подтвердите действие. Для автоматического запуска доступен параметр:
+3D Mod controls [Skin Layers 3D 1.11.3 by tr7zw](https://github.com/tr7zw/3d-Skin-Layers). The launcher downloads the unmodified component from the author's Modrinth CDN and verifies its SHA-512; it is not redistributed inside Orbit's JAR or executable. It uses the [tr7zw Protective License](https://github.com/tr7zw/3d-Skin-Layers/blob/main/LICENSE). A local build dependency and its license are in `OrbitClient/libs/`; do not redistribute that dependency as part of Orbit source packages. Orbit controls part toggles, thickness and distance at runtime.
 
-```bat
-cleaning.bat --yes
-```
+Development checks: `OrbitClient/gradlew.bat build`, or `OrbitClient/gradlew.bat :runClient -PorbitWorldSmoke` for actual world rendering, texture recoloring, skin meshes, inventory synchronization and UI checks. The world check creates an isolated test world under `OrbitClient/run/`.
 
-Скрипт закрывает Orbit Launcher и удаляет Microsoft-сессию, локальные настройки, кэш, все сборки Minecraft и результаты `build.bat`/`installer-build.bat`. Исходный код, `AppConfiguration.cs`, `AppConfiguration.Local.cs`, Client ID, API key и адреса API не удаляются.
+The dedicated `OrbitClient/gradlew.bat :runClient -PorbitGlowSmoke` regression checks native idle/attack/recovery, R inspection, item use, full HMI rendering, outline visibility/alpha/foil filtering, inventory and third-person passes, RGB persistence and settings layouts in both languages. Run development client commands from `OrbitClient/` (use `gradlew.bat` there).
 
-> Очистка сборок необратима: вместе с ними удаляются локальные миры и моды Orbit Launcher.
+## Recovery
 
-## Где хранятся данные
+The deleted project was reconstructed from the saved launcher build and recorded source changes. Some C# files and XAML were recovered from compiled assemblies, so their formatting, comments and file organization can differ from the original. Orbit Client's Java code was rebuilt and checked against the saved 0.8.0 JAR.
 
-Локальные данные не встраиваются в EXE или Installer:
-
-```text
-%LOCALAPPDATA%\OrbitLauncher\
-├─ accounts.json    сессия Microsoft
-├─ settings.json    настройки лаунчера
-├─ cache\           служебный каталог; изображения каталога на диск не записываются
-└─ instances\       сборки Minecraft
-```
-
-Перед публикацией проекта не добавляйте эту папку в Git и не копируйте её в `dist`.
-
-## Структура проекта
-
-```text
-OrbitLauncher\
-├─ Assets\                     иконки приложения и установщика
-├─ Dialogs\                    диалоговые окна
-├─ Models\                     модели данных
-├─ Services\                   Minecraft, авторизация и API каталогов
-├─ Themes\OrbitTheme.xaml      дизайн-система
-├─ Utilities\                  общие вспомогательные классы
-│  ├─ AppConfiguration.cs      адреса API и конфигурация сборки
-│  └─ AppConfiguration.Local.cs.example  пример локальных ключей
-├─ installer\OrbitLauncher.iss сценарий Inno Setup
-├─ MainWindow.xaml             главное окно
-├─ OrbitLauncher.csproj
-├─ build.bat                   переносимый EXE
-├─ installer-build.bat         установщик
-├─ sign-file.bat               Authenticode-подпись результатов сборки
-└─ cleaning.bat                очистка личных и сборочных данных
-```
-
-## Зависимости
-
-- [CmlLib.Core](https://github.com/CmlLib/CmlLib.Core) — установка и запуск Minecraft;
-- CmlLib.Core.Auth.Microsoft и XboxAuthNet — Microsoft/Xbox-аутентификация;
-- CmlLib.Core.Installer.Forge — установка Forge;
-- [SkiaSharp](https://github.com/mono/SkiaSharp) — декодирование и обработка изображений;
-- [Inno Setup](https://jrsoftware.org/isinfo.php) — сборка установщика.
-
-Зависимости распространяются на условиях собственных лицензий.
-
-## Безопасность
-
-- не публикуйте Microsoft-токены, `accounts.json` и API keys;
-- загружайте моды только из доверенных источников;
-- проверяйте контрольные суммы релизов;
-- подписывайте публичные сборки одним постоянным сертификатом;
-- сообщайте об уязвимостях приватно владельцу репозитория, а не в публичном issue.
-
-## Лицензия
-
-Исходный код Orbit Launcher распространяется по лицензии [MIT](LICENSE).
-
-Orbit Launcher не связан с Mojang Studios, Microsoft, Modrinth или CurseForge. Minecraft является товарным знаком Microsoft Corporation.
+Minecraft instances, accounts and user settings remain in `%LOCALAPPDATA%/OrbitLauncher`; they are separate from the project directory.

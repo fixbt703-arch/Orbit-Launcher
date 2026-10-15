@@ -1,0 +1,44 @@
+{
+  "model": {
+    "type": "minecraft:condition",
+    "property": "holdmyitems:enabled",
+    "on_true": {
+      "type": "minecraft:select",
+      "property": "minecraft:display_context",
+      "cases": [
+        {
+          "when": [
+            "gui",
+            "fixed",
+            "ground"
+          ],
+          "model": {
+            "type": "minecraft:model",
+            "model": "minecraft:item/bucket"
+          }
+        },
+        {
+          "when": [
+            "firstperson_righthand",
+            "firstperson_lefthand",
+            "thirdperson_righthand",
+            "thirdperson_lefthand",
+            "head"
+          ],
+          "model": {
+            "type": "minecraft:model",
+            "model": "minecraft:item/bucket_3d"
+          }
+        }
+      ],
+      "fallback": {
+        "type": "minecraft:model",
+        "model": "minecraft:item/bucket"
+      }
+    },
+    "on_false": {
+      "type": "minecraft:model",
+      "model": "minecraft:item/bucket"
+    }
+  }
+}

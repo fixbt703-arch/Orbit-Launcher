@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window Style="{StaticResource {x:Type Window}}" x:Class="OrbitLauncher.Dialogs.CreateInstanceDialog" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:utilities="clr-namespace:OrbitLauncher.Utilities" xmlns:models="clr-namespace:OrbitLauncher.Models" Title="Новая сборка" Width="940" Height="720" MinWidth="860" MinHeight="660" ResizeMode="CanResize" WindowStyle="None" WindowStartupLocation="CenterOwner" Background="#00FFFFFF" xmlns:dialogs="clr-namespace:OrbitLauncher.Dialogs">
+  <FrameworkElement.Resources>
+    <ResourceDictionary>
+      <Style x:Key="LoaderCard" TargetType="{x:Type RadioButton}">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12" />
+        <Setter Property="FrameworkElement.Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="{x:Type RadioButton}">
+              <Border Name="Card" utilities:InterfaceMotion.Fill="{TemplateBinding Control.Background}" utilities:InterfaceMotion.Stroke="{TemplateBinding Control.BorderBrush}" BorderThickness="{TemplateBinding Control.BorderThickness}" CornerRadius="12" Padding="{TemplateBinding Control.Padding}">
+                <ContentPresenter />
+              </Border>
+              <ControlTemplate.Triggers>
+                <Trigger Property="UIElement.IsMouseOver" Value="True">
+                  <Setter TargetName="Card" Property="utilities:InterfaceMotion.Fill" Value="{DynamicResource CardHoverBrush}" />
+                </Trigger>
+                <Trigger Property="ToggleButton.IsChecked" Value="True">
+                  <Setter TargetName="Card" Property="utilities:InterfaceMotion.Fill" Value="{DynamicResource SelectionBrush}" />
+                  <Setter TargetName="Card" Property="utilities:InterfaceMotion.Stroke" Value="{DynamicResource PrimaryBrush}" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+    </ResourceDictionary>
+  </FrameworkElement.Resources>
+  <Border Style="{StaticResource WindowFrame}">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="64" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="70" />
+      </Grid.RowDefinitions>
+      <Grid Style="{StaticResource DialogTitleBar}" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+        <StackPanel Orientation="Horizontal" Margin="22,0" VerticalAlignment="Center">
+          <Border Width="30" Height="30" CornerRadius="9" Background="{DynamicResource SoftAccentBrush}">
+            <ContentControl Content="" Style="{StaticResource SmoothActionIcon}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryLightBrush}" />
+          </Border>
+          <StackPanel Margin="11,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="Новая сборка" FontSize="14" FontWeight="SemiBold" />
+            <TextBlock Text="Настройте игру и загрузчик" Style="{StaticResource CaptionText}" />
+          </StackPanel>
+        </StackPanel>
+        <Button HorizontalAlignment="Right" Width="48" Style="{StaticResource TitleBarButton}" Click="Cancel_Click" ToolTip="Закрыть">
+          <ContentControl Content="" Style="{StaticResource SmoothActionIcon}" />
+        </Button>
+      </Grid>
+      <Grid Row="1">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="250" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Border Background="{DynamicResource OverlayBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,1,0">
+          <StackPanel Margin="22">
+            <TextBlock Text="ОФОРМЛЕНИЕ" Style="{StaticResource EyebrowText}" />
+            <Border Width="104" Height="104" HorizontalAlignment="Left" CornerRadius="12" Background="{DynamicResource ControlBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" ClipToBounds="True" Margin="0,13,0,18">
+              <Grid>
+                <ContentControl Name="DefaultIconGlyph" Content="" Style="{StaticResource SmoothActionIcon}" Foreground="{DynamicResource PrimaryLightBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Width="38" Height="38" />
+                <Image Name="IconPreview" Stretch="UniformToFill" />
+              </Grid>
+            </Border>
+            <Button Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Click="ChooseIcon_Click">
+              <StackPanel Orientation="Horizontal">
+                <ContentControl Content="" Style="{StaticResource SmoothActionIcon}" Margin="0,0,8,0" />
+                <TextBlock Text="Выбрать иконку" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <TextBlock Text="Название сборки" Style="{StaticResource DialogLabel}" Margin="0,24,0,0" />
+            <TextBox Name="NameBox" Text="Новая сборка" />
+            <Border Style="{StaticResource SubtleCard}" Margin="0,22,0,0">
+              <StackPanel>
+                <TextBlock Text="Отдельная среда" FontWeight="SemiBold" FontSize="12" />
+                <TextBlock Text="Миры, моды и настройки хранятся отдельно." TextWrapping="Wrap" Style="{StaticResource CaptionText}" Margin="0,5,0,0" />
+              </StackPanel>
+            </Border>
+            <Border Background="{DynamicResource OverlayBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,12,0,0">
+              <CheckBox Name="OrbitClientCheck" Checked="OrbitClientCheck_Changed" Unchecked="OrbitClientCheck_Changed">
+                <StackPanel Margin="3,0,0,0">
+                  <TextBlock Text="Orbit Client" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryLightBrush}" />
+                  <TextBlock Text="PvP HUD, меню на Right Shift и оптимизация" Style="{StaticResource CaptionText}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                  <TextBlock Text="Minecraft 26.2 + Fabric" Foreground="{DynamicResource SuccessBrush}" FontSize="12" Margin="0,5,0,0" />
+                </StackPanel>
+              </CheckBox>
+            </Border>
+          </StackPanel>
+        </Border>
+        <Grid Column="1" Margin="26,22">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <Grid>
+            <StackPanel>
+              <TextBlock Text="Версия Minecraft" Style="{StaticResource SectionTitle}" />
+              <TextBlock Text="Сначала выберите версию игры, затем загрузчик и его версию." Style="{StaticResource MutedText}" Margin="0,4,0,0" />
+            </StackPanel>
+            <Border HorizontalAlignment="Right" Style="{StaticResource StatusPill}">
+              <TextBlock Name="VersionLoadingText" Text="Загрузка…" FontSize="12" Foreground="{DynamicResource AccentBrush}" />
+            </Border>
+          </Grid>
+          <Grid Row="1" Margin="0,16,0,10">
+            <TextBox Name="VersionSearchBox" TextChanged="VersionSearchBox_TextChanged" />
+            <TextBlock Text="Поиск версии игры">
+              <FrameworkElement.Style>
+                <Style BasedOn="{StaticResource InputPlaceholder}" TargetType="{x:Type TextBlock}">
+                  <Setter Property="Visibility" Value="Collapsed" />
+                  <Style.Triggers>
+                    <DataTrigger Value="" Binding="{Binding Text, ElementName=VersionSearchBox}">
+                      <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </FrameworkElement.Style>
+            </TextBlock>
+          </Grid>
+          <ListBox Name="VersionList" Grid.Row="2" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ItemsSource="{Binding VisibleVersions}" SelectionChanged="VersionList_SelectionChanged">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type models:MinecraftVersionInfo}">
+                <Grid Margin="4,2">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="95" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock FontWeight="SemiBold" Text="{Binding Id}" />
+                  <Border Grid.Column="1" Style="{StaticResource TagPill}" HorizontalAlignment="Left">
+                    <TextBlock FontSize="12" Text="{Binding TypeDisplay}" />
+                  </Border>
+                  <TextBlock Grid.Column="2" Style="{StaticResource CaptionText}" HorizontalAlignment="Right" Text="{Binding ReleaseTime, StringFormat={}{0:dd.MM.yyyy}}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ListBox>
+          <StackPanel Grid.Row="3" Margin="0,16,0,0">
+            <TextBlock Text="Загрузчик" Style="{StaticResource DialogLabel}" />
+            <UniformGrid Columns="5">
+              <RadioButton Name="VanillaLoader" Tag="Vanilla" GroupName="Loader" IsChecked="True" Style="{StaticResource LoaderCard}" Margin="0,0,5,0" Checked="Loader_Checked">
+                <StackPanel>
+                  <TextBlock Text="Vanilla" FontWeight="SemiBold" />
+                  <TextBlock Text="Без модов" Style="{StaticResource CaptionText}" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton Name="FabricLoader" Tag="Fabric" GroupName="Loader" Style="{StaticResource LoaderCard}" Margin="5,0" Checked="Loader_Checked">
+                <StackPanel>
+                  <TextBlock Text="Fabric" FontWeight="SemiBold" />
+                  <TextBlock Text="Лёгкий" Style="{StaticResource CaptionText}" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton Name="ForgeLoader" Tag="Forge" GroupName="Loader" Style="{StaticResource LoaderCard}" Margin="5,0" Checked="Loader_Checked">
+                <StackPanel>
+                  <TextBlock Text="Forge" FontWeight="SemiBold" />
+                  <TextBlock Text="Классический" Style="{StaticResource CaptionText}" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton Name="NeoForgeLoader" Tag="NeoForge" GroupName="Loader" Style="{StaticResource LoaderCard}" Margin="5,0" Checked="Loader_Checked">
+                <StackPanel>
+                  <TextBlock Text="NeoForge" FontWeight="SemiBold" />
+                  <TextBlock Text="Современный" Style="{StaticResource CaptionText}" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton Name="QuiltLoader" Tag="Quilt" GroupName="Loader" Style="{StaticResource LoaderCard}" Margin="5,0,0,0" Checked="Loader_Checked">
+                <StackPanel>
+                  <TextBlock Text="Quilt" FontWeight="SemiBold" />
+                  <TextBlock Text="Модульный" Style="{StaticResource CaptionText}" />
+                </StackPanel>
+              </RadioButton>
+            </UniformGrid>
+          </StackPanel>
+          <Grid Row="4" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="14" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+              <TextBlock Text="Версия загрузчика" Style="{StaticResource DialogLabel}" />
+              <ComboBox Name="LoaderVersionCombo" DisplayMemberPath="DisplayName" SelectedValuePath="Id" ItemsSource="{Binding LoaderVersions}" />
+            </StackPanel>
+            <TextBlock Name="LoaderVersionStatusText" Grid.Column="2" Text="Для Vanilla не требуется" Style="{StaticResource CaptionText}" VerticalAlignment="Bottom" Margin="0,0,0,11" />
+          </Grid>
+          <Expander Grid.Row="5" Header="Память" Margin="0,14,0,0">
+            <Grid Margin="0,10,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Text="Минимум, МБ" Style="{StaticResource DialogLabel}" />
+                <TextBox Name="MinRamBox" />
+              </StackPanel>
+              <StackPanel Grid.Column="2">
+                <TextBlock Text="Максимум, МБ" Style="{StaticResource DialogLabel}" />
+                <TextBox Name="MaxRamBox" />
+              </StackPanel>
+            </Grid>
+          </Expander>
+        </Grid>
+      </Grid>
+      <Border Grid.Row="2" Style="{StaticResource DialogFooter}">
+        <Grid>
+          <TextBlock Text="Файлы игры будут загружены при первом запуске." Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Отмена" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Click="Cancel_Click" />
+            <Button Name="CreateButton" Content="Создать сборку" Style="{StaticResource PrimaryButton}" Click="Create_Click" />
+          </StackPanel>
+        </Grid>
+      </Border>
+    </Grid>
+  </Border>
+</Window>

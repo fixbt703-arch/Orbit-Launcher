@@ -1,0 +1,46 @@
+using System;
+using System.IO;
+using System.Net.Http;
+using System.Reflection;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+internal static class ReleaseProbe
+{
+    private static async Task<int> Main(string[] args)
+    {
+        try
+        {
+            if (args.Length != 4) return Fail("Invalid validation arguments.");
+            var assemblyBytes = File.ReadAllBytes(args[0]);
+            var payloadBytes = File.ReadAllBytes(args[1]);
+            if (payloadBytes.AsSpan().IndexOf(assemblyBytes) < 0)
+                return Fail("The EXE does not contain the verified application assembly.");
+            var assembly = Assembly.LoadFrom(args[0]);
+            var config = assembly.GetType("OrbitLauncher.Utilities.AppConfiguration", true)!;
+            var key = config.GetProperty("CurseForgeApiKey", BindingFlags.Public | BindingFlags.Static)!.GetValue(null) as string;
+            var clientId = config.GetProperty("MicrosoftClientId", BindingFlags.Public | BindingFlags.Static)!.GetValue(null) as string;
+            if (string.IsNullOrWhiteSpace(key)) return Fail("CurseForge API key is missing in AppConfiguration.Local.cs.");
+            if (!Guid.TryParse(clientId, out var actualId) || actualId != Guid.Parse(args[3]))
+                return Fail("Local Microsoft Client ID differs from PublicClientId. Pass the matching public GUID.");
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("OrbitLauncher/ReleaseVerification");
+            using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.curseforge.com/v1/mods/search?gameId=432&pageSize=1&index=0");
+            request.Headers.Add("x-api-key", key);
+            using var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode) return Fail("CurseForge rejected the release API request (HTTP " + (int)response.StatusCode + ").");
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            if (!document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array || data.GetArrayLength() == 0)
+                return Fail("CurseForge returned no catalog data for the release verification.");
+            File.WriteAllText(args[2], JsonSerializer.Serialize(new { apiVerified = true, payloadVerified = true, publicMicrosoftClientId = actualId.ToString() }));
+            Console.WriteLine("PASS release: embedded assembly matches, Microsoft Client ID matches, CurseForge API returns catalog data.");
+            return 0;
+        }
+        catch (Exception error)
+        {
+            // Never print exception details, configuration values or HTTP headers.
+            return Fail("Release verification could not complete (" + error.GetType().Name + ").");
+        }
+    }
+    private static int Fail(string reason) { Console.WriteLine(reason); return 1; }
+}

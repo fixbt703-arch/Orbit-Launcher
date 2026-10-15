@@ -1,0 +1,112 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version '1.17.20'
+}
+version = '0.18.4'
+evaluationDependsOn(':holdmyitems')
+group = 'org.orbitlauncher'
+base { archivesName = 'orbit-client' }
+repositories { flatDir { dirs 'libs' } }
+dependencies {
+    minecraft 'com.mojang:minecraft:26.2'
+    implementation 'net.fabricmc:fabric-loader:0.19.3'
+    implementation 'org.orbitlauncher.bundled:skinlayers3d-fabric:1.11.3-mc26.2'
+    implementation 'net.fabricmc.fabric-api:fabric-api:0.158.0+26.2'
+    implementation project(':holdmyitems')
+    include project(':holdmyitems')
+}
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+    withSourcesJar()
+}
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+tasks.withType(Jar).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+tasks.register('generateUiAssets', Exec) {
+    inputs.file('tools/GenerateUiAssets.java')
+    inputs.file('../Assets/orbitlauncher.png')
+    outputs.dir('src/main/resources/assets/orbit_client/textures/gui/sprites/ui')
+    outputs.dir('src/main/resources/assets/orbit_client/textures/gui/sprites/tooltip')
+    commandLine new File(System.getProperty('java.home'), 'bin/java.exe').absolutePath,
+        'tools/GenerateUiAssets.java', 'src/main/resources/assets/orbit_client/textures/gui/sprites/ui', '../Assets/orbitlauncher.png'
+}
+processResources.dependsOn generateUiAssets
+sourcesJar.dependsOn generateUiAssets
+
+tasks.register('generateLauncherIcons', Exec) {
+    inputs.files('tools/ExportLauncherIcons.ps1','../Themes/softicons.xaml','../Themes/OrbitTheme.xaml')
+    outputs.dir('src/main/resources/assets/orbit_client/textures/gui/sprites/launcher_icons')
+    commandLine 'C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe','-NoProfile','-STA','-ExecutionPolicy','Bypass','-File','tools/ExportLauncherIcons.ps1',
+        '-SourceDirectory','../Themes','-OutputDirectory','src/main/resources/assets/orbit_client/textures/gui/sprites/launcher_icons'
+}
+processResources.dependsOn generateLauncherIcons
+sourcesJar.dependsOn generateLauncherIcons
+tasks.register('generateUiFont', Exec) {
+    inputs.file('tools/GenerateUiFont.java')
+    outputs.file('src/main/resources/assets/orbit_client/font/ui.json')
+    outputs.file('src/main/resources/assets/orbit_client/font/ui_bitmap.json')
+    outputs.file('src/main/resources/assets/orbit_client/font/ui_strong.json')
+    outputs.file('src/main/resources/assets/orbit_client/font/ui_heading.json')
+    outputs.file('src/main/resources/assets/orbit_client/font/ui_brand.json')
+    outputs.file('src/main/resources/assets/orbit_client/textures/font/ui.png')
+    commandLine new File(System.getProperty('java.home'), 'bin/java.exe').absolutePath,
+        'tools/GenerateUiFont.java', 'src/main/resources/assets/orbit_client'
+}
+processResources.dependsOn generateUiFont
+sourcesJar.dependsOn generateUiFont
+jar { from('../LICENSE') { rename { 'LICENSE-OrbitClient' } } }
+jar { from('../Assets/Icons/TABLER-LICENSE.txt') { rename { 'LICENSE-Tabler.txt' } } }
+tasks.register('layoutTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.orbitlauncher.client.HudLayoutTest'
+}
+check.dependsOn layoutTest
+tasks.register('crosshairTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.orbitlauncher.client.CrosshairPatternTest'
+}
+check.dependsOn crosshairTest
+// The deterministic layout harness is executed by layoutTest, not a JUnit runner.
+tasks.named('test') { failOnNoDiscoveredTests = false }
+tasks.register('glowContourTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.orbitlauncher.client.GlowContourTest'
+}
+check.dependsOn glowContourTest
+loom {
+    mods {
+        orbit_client { sourceSet sourceSets.main }
+        holdmyitems { sourceSet project(':holdmyitems').sourceSets.main }
+    }
+    runs {
+        client {
+            if (project.hasProperty('orbitGlowSmoke')) {
+                vmArg '-Dorbit.client.smoke-test=true'
+                vmArg '-Dorbit.client.world-smoke=true'
+                vmArg '-Dorbit.client.glow-smoke=true'
+            }
+            if (project.hasProperty('orbitHmiSmoke')) {
+                vmArg '-Dorbit.client.smoke-test=true'
+                vmArg '-Dorbit.client.world-smoke=true'
+                vmArg '-Dorbit.client.hmi-smoke=true'
+            }
+            if (project.hasProperty('orbitSmoke')) vmArg '-Dorbit.client.smoke-test=true'
+            if (project.hasProperty('orbitLabelSmoke')) {
+                vmArg '-Dorbit.client.smoke-test=true'
+                vmArg '-Dorbit.client.label-smoke=true'
+            }
+            if (project.hasProperty('orbitWorldSmoke')) {
+                vmArg '-Dorbit.client.smoke-test=true'
+                vmArg '-Dorbit.client.world-smoke=true'
+            }
+        }
+    }
+}

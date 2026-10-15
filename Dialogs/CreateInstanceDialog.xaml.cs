@@ -1,7 +1,17 @@
+using System;
+using System.CodeDom.Compiler;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using OrbitLauncher.Models;
@@ -12,182 +22,288 @@ namespace OrbitLauncher.Dialogs;
 
 public partial class CreateInstanceDialog : Window
 {
-    private readonly VersionManifestService _versionService;
-    private readonly LoaderVersionService _loaderVersionService;
-    private readonly LauncherSettings _settings;
-    private IReadOnlyList<MinecraftVersionInfo> _versions = [];
-    private CancellationTokenSource? _loaderVersionsCancellation;
+	private readonly VersionManifestService _versionService;
 
-    public ObservableCollection<MinecraftVersionInfo> VisibleVersions { get; } = [];
-    public ObservableCollection<LoaderVersionInfo> LoaderVersions { get; } = [];
-    public GameInstance? Result { get; private set; }
-    public string? SelectedIconPath { get; private set; }
+	private readonly LoaderVersionService _loaderVersionService;
 
-    public CreateInstanceDialog(HttpClient httpClient, LauncherSettings settings)
-    {
-        InitializeComponent();
-        _versionService = new VersionManifestService(httpClient, settings.MinecraftManifestApi);
-        _loaderVersionService = new LoaderVersionService(httpClient, settings);
-        _settings = settings;
-        MinRamBox.Text = settings.DefaultMinimumRamMb.ToString();
-        MaxRamBox.Text = settings.DefaultMaximumRamMb.ToString();
-        DataContext = this;
-        LocalizationService.Apply(this);
-        Loaded += CreateInstanceDialog_Loaded;
-        Closed += (_, _) => _loaderVersionsCancellation?.Cancel();
-    }
+	private readonly LauncherSettings _settings;
 
-    private async void CreateInstanceDialog_Loaded(object sender, RoutedEventArgs e)
-    {
-        CreateButton.IsEnabled = false;
-        try
-        {
-            _versions = await _versionService.GetVersionsAsync(_settings.ShowSnapshots);
-            VersionLoadingText.Text = LocalizationService.IsEnglish ? $"{_versions.Count} versions" : $"{_versions.Count} версий";
-        }
-        catch
-        {
-            _versions = new[] { "1.21.8", "1.21.7", "1.21.6", "1.21.5", "1.21.4", "1.21.1", "1.20.6", "1.20.4", "1.20.1", "1.19.4", "1.18.2", "1.16.5" }
-                .Select(id => new MinecraftVersionInfo { Id = id, ReleaseTime = DateTime.Today })
-                .ToList();
-            VersionLoadingText.Text = LocalizationService.Translate("Резервный список");
-        }
+	private IReadOnlyList<MinecraftVersionInfo> _versions = Array.Empty<MinecraftVersionInfo>();
 
-        ApplyVersionFilter();
-        VersionList.SelectedIndex = 0;
-        CreateButton.IsEnabled = true;
-        LocalizationService.Apply(this);
-    }
+	private CancellationTokenSource? _loaderVersionsCancellation;
 
-    private void VersionSearchBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (IsLoaded)
-            ApplyVersionFilter();
-    }
+	private bool _changingOrbitClientSelection;
 
-    private async void VersionList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (IsLoaded)
-            await RefreshLoaderVersionsAsync();
-    }
 
-    private async void Loader_Checked(object sender, RoutedEventArgs e)
-    {
-        if (IsLoaded)
-            await RefreshLoaderVersionsAsync();
-    }
+	public ObservableCollection<MinecraftVersionInfo> VisibleVersions { get; } = new ObservableCollection<MinecraftVersionInfo>();
 
-    private string SelectedLoader => new[] { VanillaLoader, FabricLoader, ForgeLoader, NeoForgeLoader, QuiltLoader }
-        .FirstOrDefault(button => button.IsChecked == true)?.Tag?.ToString() ?? "Vanilla";
+	public ObservableCollection<LoaderVersionInfo> LoaderVersions { get; } = new ObservableCollection<LoaderVersionInfo>();
 
-    private async Task RefreshLoaderVersionsAsync()
-    {
-        _loaderVersionsCancellation?.Cancel();
-        _loaderVersionsCancellation?.Dispose();
-        _loaderVersionsCancellation = new CancellationTokenSource();
-        LoaderVersions.Clear();
-        LoaderVersionCombo.IsEnabled = false;
+	public GameInstance? Result { get; private set; }
 
-        var loader = SelectedLoader;
-        var gameVersion = (VersionList.SelectedItem as MinecraftVersionInfo)?.Id ?? string.Empty;
-        if (loader == "Vanilla")
-        {
-            LoaderVersionStatusText.Text = LocalizationService.Translate("Для Vanilla не требуется");
-            return;
-        }
+	public string? SelectedIconPath { get; private set; }
 
-        LoaderVersionStatusText.Text = LocalizationService.Translate("Загрузка версий…");
-        try
-        {
-            var versions = await _loaderVersionService.GetVersionsAsync(loader, gameVersion, _loaderVersionsCancellation.Token);
-            foreach (var version in versions)
-                LoaderVersions.Add(version);
-            LoaderVersionCombo.SelectedIndex = LoaderVersions.Count > 0 ? 0 : -1;
-            LoaderVersionCombo.IsEnabled = LoaderVersions.Count > 0;
-            LoaderVersionStatusText.Text = LoaderVersions.Count > 0 ? $"Доступно: {LoaderVersions.Count}" : "Нет совместимых версий";
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch
-        {
-            LoaderVersionStatusText.Text = LocalizationService.Translate("Не удалось получить список");
-        }
-    }
+	private string SelectedLoader => new RadioButton[5] { VanillaLoader, FabricLoader, ForgeLoader, NeoForgeLoader, QuiltLoader }.FirstOrDefault((RadioButton button) => button.IsChecked == true)?.Tag?.ToString() ?? "Vanilla";
 
-    private void ApplyVersionFilter()
-    {
-        var query = VersionSearchBox.Text.Trim();
-        var selectedId = (VersionList.SelectedItem as MinecraftVersionInfo)?.Id;
-        VisibleVersions.Clear();
-        foreach (var version in _versions.Where(version => string.IsNullOrWhiteSpace(query)
-                                                           || version.Id.Contains(query, StringComparison.OrdinalIgnoreCase)))
-            VisibleVersions.Add(version);
+	public CreateInstanceDialog(HttpClient httpClient, LauncherSettings settings)
+	{
+		InitializeComponent();
+		_versionService = new VersionManifestService(httpClient, settings.MinecraftManifestApi);
+		_loaderVersionService = new LoaderVersionService(httpClient, settings);
+		_settings = settings;
+		MinRamBox.Text = settings.DefaultMinimumRamMb.ToString();
+		MaxRamBox.Text = settings.DefaultMaximumRamMb.ToString();
+		base.DataContext = this;
+		LocalizationService.Apply(this);
+		base.Loaded += CreateInstanceDialog_Loaded;
+		base.Closed += delegate
+		{
+			_loaderVersionsCancellation?.Cancel();
+		};
+	}
 
-        VersionList.SelectedItem = VisibleVersions.FirstOrDefault(version => version.Id == selectedId)
-                                   ?? VisibleVersions.FirstOrDefault();
-    }
+	private async void CreateInstanceDialog_Loaded(object sender, RoutedEventArgs e)
+	{
+		CreateButton.IsEnabled = false;
+		OrbitClientCheck.IsEnabled = false;
+		try
+		{
+			_versions = await _versionService.GetVersionsAsync(_settings.ShowSnapshots);
+			VersionLoadingText.Text = (LocalizationService.IsEnglish ? $"{_versions.Count} versions" : $"{_versions.Count} версий");
+		}
+		catch
+		{
+			_versions = new string[12]
+			{
+				"1.21.8", "1.21.7", "1.21.6", "1.21.5", "1.21.4", "1.21.1", "1.20.6", "1.20.4", "1.20.1", "1.19.4",
+				"1.18.2", "1.16.5"
+			}.Select((string id) => new MinecraftVersionInfo
+			{
+				Id = id,
+				ReleaseTime = DateTime.Today
+			}).ToList();
+			VersionLoadingText.Text = LocalizationService.Translate("Резервный список");
+		}
+		ApplyVersionFilter();
+		VersionList.SelectedIndex = 0;
+		CreateButton.IsEnabled = true;
+		OrbitClientCheck.IsEnabled = true;
+		LocalizationService.Apply(this);
+	}
 
-    private void ChooseIcon_Click(object sender, RoutedEventArgs e)
-    {
-        var picker = new OpenFileDialog { Filter = "Изображения (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp" };
-        if (picker.ShowDialog(this) != true)
-            return;
+	private void VersionSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+	{
+		if (base.IsLoaded)
+		{
+			ApplyVersionFilter();
+		}
+	}
 
-        try
-        {
-            var image = new BitmapImage();
-            image.BeginInit();
-            image.CacheOption = BitmapCacheOption.OnLoad;
-            image.UriSource = new Uri(picker.FileName, UriKind.Absolute);
-            image.EndInit();
-            image.Freeze();
-            IconPreview.Source = image;
-            DefaultIconGlyph.Visibility = Visibility.Collapsed;
-            SelectedIconPath = picker.FileName;
-        }
-        catch (Exception ex)
-        {
-            LocalizationService.Show(this, $"Не удалось открыть изображение.\n\n{ex.Message}", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
+	private async void VersionList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+	{
+		if (base.IsLoaded)
+		{
+			await RefreshLoaderVersionsAsync();
+		}
+	}
 
-    private void Create_Click(object sender, RoutedEventArgs e)
-    {
-        var name = NameBox.Text.Trim();
-        var gameVersion = (VersionList.SelectedItem as MinecraftVersionInfo)?.Id ?? string.Empty;
-        var loader = SelectedLoader;
-        var loaderVersion = (LoaderVersionCombo.SelectedItem as LoaderVersionInfo)?.Id ?? string.Empty;
+	private async void Loader_Checked(object sender, RoutedEventArgs e)
+	{
+		if (base.IsLoaded)
+		{
+			await RefreshLoaderVersionsAsync();
+		}
+	}
 
-        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(gameVersion))
-        {
-            LocalizationService.Show(this, "Укажите название и выберите версию Minecraft.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-        if (loader != "Vanilla" && string.IsNullOrWhiteSpace(loaderVersion))
-        {
-            LocalizationService.Show(this, "Выберите версию загрузчика. Если список пуст, эта версия Minecraft не поддерживается выбранным загрузчиком.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-        if (!int.TryParse(MinRamBox.Text, out var minRam) || !int.TryParse(MaxRamBox.Text, out var maxRam)
-            || minRam < 512 || maxRam < minRam || maxRam > 65536)
-        {
-            LocalizationService.Show(this, "Проверьте объём памяти: минимум 512 МБ, максимум не меньше минимума.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
+	private async void OrbitClientCheck_Changed(object sender, RoutedEventArgs e)
+	{
+		if (!base.IsLoaded || _changingOrbitClientSelection)
+		{
+			return;
+		}
+		_changingOrbitClientSelection = true;
+		try
+		{
+			bool valueOrDefault = OrbitClientCheck.IsChecked == true;
+			ApplyOrbitClientLock(valueOrDefault);
+			if (!valueOrDefault)
+			{
+				return;
+			}
+			VersionSearchBox.Text = string.Empty;
+			MinecraftVersionInfo minecraftVersionInfo = _versions.FirstOrDefault((MinecraftVersionInfo version) => version.Id == "26.2");
+			if (minecraftVersionInfo == null)
+			{
+				OrbitClientCheck.IsChecked = false;
+				ApplyOrbitClientLock(enabled: false);
+				LocalizationService.Show(this, "Minecraft 26.2 отсутствует в списке версий. Обновите список и попробуйте снова.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+				return;
+			}
+			VersionList.SelectedItem = minecraftVersionInfo;
+			FabricLoader.IsChecked = true;
+			await RefreshLoaderVersionsAsync();
+			Version result;
+			LoaderVersionInfo loaderVersionInfo = LoaderVersions.FirstOrDefault((LoaderVersionInfo version) => Version.TryParse(version.Id, out result) && result >= new Version(0, 19, 3));
+			if (loaderVersionInfo == null)
+			{
+				OrbitClientCheck.IsChecked = false;
+				ApplyOrbitClientLock(enabled: false);
+				LocalizationService.Show(this, "Не удалось найти Fabric Loader 0.19.3 или новее для Minecraft 26.2.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+			}
+			else
+			{
+				LoaderVersionCombo.SelectedItem = loaderVersionInfo;
+			}
+		}
+		finally
+		{
+			_changingOrbitClientSelection = false;
+		}
+	}
 
-        Result = new GameInstance
-        {
-            Name = name,
-            GameVersion = gameVersion,
-            Loader = loader,
-            LoaderVersion = loaderVersion,
-            MinimumRamMb = minRam,
-            MaximumRamMb = maxRam
-        };
-        DialogResult = true;
-    }
+	private void ApplyOrbitClientLock(bool enabled)
+	{
+		VersionSearchBox.IsEnabled = !enabled;
+		VersionList.IsEnabled = !enabled;
+		VanillaLoader.IsEnabled = !enabled;
+		ForgeLoader.IsEnabled = !enabled;
+		NeoForgeLoader.IsEnabled = !enabled;
+		QuiltLoader.IsEnabled = !enabled;
+	}
 
-    private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
-    private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) => DragMove();
+	private async Task RefreshLoaderVersionsAsync()
+	{
+		_loaderVersionsCancellation?.Cancel();
+		_loaderVersionsCancellation?.Dispose();
+		_loaderVersionsCancellation = new CancellationTokenSource();
+		LoaderVersions.Clear();
+		LoaderVersionCombo.IsEnabled = false;
+		string selectedLoader = SelectedLoader;
+		string gameVersion = (VersionList.SelectedItem as MinecraftVersionInfo)?.Id ?? string.Empty;
+		if (selectedLoader == "Vanilla")
+		{
+			LoaderVersionStatusText.Text = LocalizationService.Translate("Для Vanilla не требуется");
+			return;
+		}
+		LoaderVersionStatusText.Text = LocalizationService.Translate("Загрузка версий…");
+		try
+		{
+			foreach (LoaderVersionInfo item in await _loaderVersionService.GetVersionsAsync(selectedLoader, gameVersion, _loaderVersionsCancellation.Token))
+			{
+				LoaderVersions.Add(item);
+			}
+			LoaderVersionCombo.SelectedIndex = ((LoaderVersions.Count <= 0) ? (-1) : 0);
+			LoaderVersionCombo.IsEnabled = LoaderVersions.Count > 0;
+			LoaderVersionStatusText.Text = ((LoaderVersions.Count > 0) ? $"Доступно: {LoaderVersions.Count}" : "Нет совместимых версий");
+		}
+		catch (OperationCanceledException)
+		{
+		}
+		catch
+		{
+			LoaderVersionStatusText.Text = LocalizationService.Translate("Не удалось получить список");
+		}
+	}
+
+	private void ApplyVersionFilter()
+	{
+		string query = VersionSearchBox.Text.Trim();
+		string selectedId = (VersionList.SelectedItem as MinecraftVersionInfo)?.Id;
+		VisibleVersions.Clear();
+		foreach (MinecraftVersionInfo item in _versions.Where((MinecraftVersionInfo version) => string.IsNullOrWhiteSpace(query) || version.Id.Contains(query, StringComparison.OrdinalIgnoreCase)))
+		{
+			VisibleVersions.Add(item);
+		}
+		VersionList.SelectedItem = VisibleVersions.FirstOrDefault((MinecraftVersionInfo version) => version.Id == selectedId) ?? VisibleVersions.FirstOrDefault();
+	}
+
+	private void ChooseIcon_Click(object sender, RoutedEventArgs e)
+	{
+		OpenFileDialog openFileDialog = new OpenFileDialog
+		{
+			Filter = "Изображения (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp"
+		};
+		if (openFileDialog.ShowDialog(this) != true)
+		{
+			return;
+		}
+		try
+		{
+			BitmapImage bitmapImage = new BitmapImage();
+			bitmapImage.BeginInit();
+			bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+			bitmapImage.UriSource = new Uri(openFileDialog.FileName, UriKind.Absolute);
+			bitmapImage.EndInit();
+			bitmapImage.Freeze();
+			IconPreview.Source = bitmapImage;
+			DefaultIconGlyph.Visibility = Visibility.Collapsed;
+			SelectedIconPath = openFileDialog.FileName;
+		}
+		catch (Exception ex)
+		{
+			LocalizationService.Show(this, "Не удалось открыть изображение.\n\n" + ex.Message, "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+		}
+	}
+
+	private void Create_Click(object sender, RoutedEventArgs e)
+	{
+		string text = NameBox.Text.Trim();
+		string text2 = (VersionList.SelectedItem as MinecraftVersionInfo)?.Id ?? string.Empty;
+		string selectedLoader = SelectedLoader;
+		string text3 = (LoaderVersionCombo.SelectedItem as LoaderVersionInfo)?.Id ?? string.Empty;
+		if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(text2))
+		{
+			LocalizationService.Show(this, "Укажите название и выберите версию Minecraft.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+			return;
+		}
+		if (selectedLoader != "Vanilla" && string.IsNullOrWhiteSpace(text3))
+		{
+			LocalizationService.Show(this, "Выберите версию загрузчика. Если список пуст, эта версия Minecraft не поддерживается выбранным загрузчиком.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+			return;
+		}
+		if (OrbitClientCheck.IsChecked == true && !OrbitClientService.Supports(text2, selectedLoader))
+		{
+			LocalizationService.Show(this, "Orbit Client поддерживает только Minecraft 26.2 + Fabric.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+			return;
+		}
+		if (OrbitClientCheck.IsChecked == true && (!Version.TryParse(text3, out Version result) || result < new Version(0, 19, 3)))
+		{
+			LocalizationService.Show(this, "Orbit Client требует Fabric Loader 0.19.3 или новее.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+			return;
+		}
+		if (!int.TryParse(MinRamBox.Text, out var result2) || !int.TryParse(MaxRamBox.Text, out var result3) || result2 < 512 || result3 < result2 || result3 > 65536)
+		{
+			LocalizationService.Show(this, "Проверьте объём памяти: минимум 512 МБ, максимум не меньше минимума.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+			return;
+		}
+		Result = new GameInstance
+		{
+			Name = text,
+			GameVersion = text2,
+			Loader = selectedLoader,
+			LoaderVersion = text3,
+			OrbitClientEnabled = (OrbitClientCheck.IsChecked == true),
+			MinimumRamMb = result2,
+			MaximumRamMb = result3
+		};
+		base.DialogResult = true;
+	}
+
+	private void Cancel_Click(object sender, RoutedEventArgs e)
+	{
+		base.DialogResult = false;
+	}
+
+	private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+	{
+		DragMove();
+	}
+
+
+
+
+
+
+
+
 }

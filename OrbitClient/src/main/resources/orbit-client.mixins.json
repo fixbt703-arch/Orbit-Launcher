@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "package": "org.orbitlauncher.client.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "FontProviderAccessor",
+    "UiFontResourceMixin",
+    "UiGlyphStitcherMixin",
+    "UiGlyphRenderMixin",
+    "MouseHandlerMixin",
+    "CameraMixin",
+    "HudMixin",
+    "AttackMixin",
+    "PingMixin",
+    "ClientChunkCacheMixin",
+    "ClientPacketListenerMixin",
+    "OptionsMixin",
+    "GlintTextureMixin",
+    "HitboxMixin",
+    "VanillaHitboxMixin",
+    "EnchantmentGlowMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

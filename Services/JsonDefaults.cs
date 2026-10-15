@@ -5,11 +5,11 @@ namespace OrbitLauncher.Services;
 
 internal static class JsonDefaults
 {
-    public static JsonSerializerOptions Options { get; } = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
+	public static JsonSerializerOptions Options { get; } = new JsonSerializerOptions
+	{
+		PropertyNameCaseInsensitive = true,
+		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+		WriteIndented = true,
+		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+	};
 }
