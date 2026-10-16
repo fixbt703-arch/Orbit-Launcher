@@ -33,6 +33,8 @@ public partial class CreateInstanceDialog : Window
 	private CancellationTokenSource? _loaderVersionsCancellation;
 
 	private bool _changingOrbitClientSelection;
+	private bool _closed;
+	private readonly CancellationTokenSource _lifetime = new();
 
 
 	public ObservableCollection<MinecraftVersionInfo> VisibleVersions { get; } = new ObservableCollection<MinecraftVersionInfo>();
@@ -58,7 +60,11 @@ public partial class CreateInstanceDialog : Window
 		base.Loaded += CreateInstanceDialog_Loaded;
 		base.Closed += delegate
 		{
+			_closed = true;
+			_lifetime.Cancel();
+			_lifetime.Dispose();
 			_loaderVersionsCancellation?.Cancel();
+			_loaderVersionsCancellation?.Dispose();
 		};
 	}
 
@@ -68,11 +74,13 @@ public partial class CreateInstanceDialog : Window
 		OrbitClientCheck.IsEnabled = false;
 		try
 		{
-			_versions = await _versionService.GetVersionsAsync(_settings.ShowSnapshots);
+			_versions = await _versionService.GetVersionsAsync(_settings.ShowSnapshots, _lifetime.Token);
+			if (_closed) return;
 			VersionLoadingText.Text = (LocalizationService.IsEnglish ? $"{_versions.Count} versions" : $"{_versions.Count} версий");
 		}
 		catch
 		{
+			if (_closed) return;
 			_versions = new string[12]
 			{
 				"1.21.8", "1.21.7", "1.21.6", "1.21.5", "1.21.4", "1.21.1", "1.20.6", "1.20.4", "1.20.1", "1.19.4",
@@ -86,7 +94,8 @@ public partial class CreateInstanceDialog : Window
 		}
 		ApplyVersionFilter();
 		VersionList.SelectedIndex = 0;
-		CreateButton.IsEnabled = true;
+		await RefreshLoaderVersionsAsync();
+		if (_closed) return;
 		OrbitClientCheck.IsEnabled = true;
 		LocalizationService.Apply(this);
 	}
@@ -142,6 +151,8 @@ public partial class CreateInstanceDialog : Window
 			VersionList.SelectedItem = minecraftVersionInfo;
 			FabricLoader.IsChecked = true;
 			await RefreshLoaderVersionsAsync();
+			if (_closed) return;
+			if (OrbitClientCheck.IsChecked != valueOrDefault) { ApplyOrbitClientLock(OrbitClientCheck.IsChecked == true); return; }
 			Version result;
 			LoaderVersionInfo loaderVersionInfo = LoaderVersions.FirstOrDefault((LoaderVersionInfo version) => Version.TryParse(version.Id, out result) && result >= new Version(0, 19, 3));
 			if (loaderVersionInfo == null)
@@ -173,9 +184,13 @@ public partial class CreateInstanceDialog : Window
 
 	private async Task RefreshLoaderVersionsAsync()
 	{
+		if (_closed) return;
 		_loaderVersionsCancellation?.Cancel();
 		_loaderVersionsCancellation?.Dispose();
 		_loaderVersionsCancellation = new CancellationTokenSource();
+		var request = _loaderVersionsCancellation;
+		var token = request.Token;
+		CreateButton.IsEnabled = false;
 		LoaderVersions.Clear();
 		LoaderVersionCombo.IsEnabled = false;
 		string selectedLoader = SelectedLoader;
@@ -183,12 +198,15 @@ public partial class CreateInstanceDialog : Window
 		if (selectedLoader == "Vanilla")
 		{
 			LoaderVersionStatusText.Text = LocalizationService.Translate("Для Vanilla не требуется");
+			CreateButton.IsEnabled = true;
 			return;
 		}
 		LoaderVersionStatusText.Text = LocalizationService.Translate("Загрузка версий…");
 		try
 		{
-			foreach (LoaderVersionInfo item in await _loaderVersionService.GetVersionsAsync(selectedLoader, gameVersion, _loaderVersionsCancellation.Token))
+			var versions = await _loaderVersionService.GetVersionsAsync(selectedLoader, gameVersion, token);
+			if (_closed || token.IsCancellationRequested || !ReferenceEquals(request, _loaderVersionsCancellation)) return;
+			foreach (LoaderVersionInfo item in versions)
 			{
 				LoaderVersions.Add(item);
 			}
@@ -201,7 +219,12 @@ public partial class CreateInstanceDialog : Window
 		}
 		catch
 		{
+			if (_closed || token.IsCancellationRequested || !ReferenceEquals(request, _loaderVersionsCancellation)) return;
 			LoaderVersionStatusText.Text = LocalizationService.Translate("Не удалось получить список");
+		}
+		finally
+		{
+			if (!_closed && ReferenceEquals(request, _loaderVersionsCancellation)) CreateButton.IsEnabled = LoaderVersionCombo.SelectedItem is LoaderVersionInfo;
 		}
 	}
 

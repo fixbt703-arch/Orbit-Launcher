@@ -31,6 +31,7 @@ public sealed class MinecraftService
 
 	public async Task<LaunchResult> InstallAndLaunchAsync(GameInstance instance, MSession session, LauncherSettings settings, IProgress<LaunchProgress> progress, Action<string>? log, CancellationToken cancellationToken = default(CancellationToken))
 	{
+		cancellationToken.ThrowIfCancellationRequested();
 		Directory.CreateDirectory(instance.DirectoryPath);
 		await new OrbitClientService(_httpClient).EnsureInstalledAsync(instance, progress, cancellationToken);
 		Directory.CreateDirectory(AppPaths.Minecraft);
@@ -117,7 +118,7 @@ public sealed class MinecraftService
 			MinimumRamMb = instance.MinimumRamMb,
 			MaximumRamMb = instance.MaximumRamMb,
 			GameLauncherName = "OrbitLauncher",
-			GameLauncherVersion = "1.2.0",
+			GameLauncherVersion = typeof(MinecraftService).Assembly.GetName().Version!.ToString(3),
 			Path = instancePath
 		};
 		if (!string.IsNullOrWhiteSpace(instance.JavaPath))
@@ -125,7 +126,9 @@ public sealed class MinecraftService
 			mLaunchOption.JavaPath = instance.JavaPath;
 		}
 		progress.Report(new LaunchProgress(100.0, "Запуск игры…"));
+		cancellationToken.ThrowIfCancellationRequested();
 		Process process = await launcher.BuildProcessAsync(versionId, mLaunchOption);
+		if (cancellationToken.IsCancellationRequested) { process.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
 		ProcessWrapper processWrapper = new ProcessWrapper(process);
 		processWrapper.OutputReceived += delegate(object? _, string message)
 		{
@@ -143,8 +146,9 @@ public sealed class MinecraftService
 			_runningProcesses.Remove(processWrapper);
 			throw;
 		}
-		ObserveExitAsync(processWrapper, process, datapackWorldCreationBridge);
-		return new LaunchResult(versionId, process.Id);
+		int processId = process.Id;
+		_ = ObserveExitAsync(processWrapper, process, datapackWorldCreationBridge);
+		return new LaunchResult(versionId, processId);
 	}
 
 	private async Task<string> InstallQuiltAsync(GameInstance instance, LauncherSettings settings, MinecraftPath minecraftPath, CancellationToken cancellationToken)

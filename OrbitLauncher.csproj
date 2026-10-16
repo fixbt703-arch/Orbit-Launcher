@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework><RuntimeIdentifier>win-x64</RuntimeIdentifier><SelfContained>true</SelfContained><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings><ApplicationIcon>app.ico</ApplicationIcon><ApplicationManifest>app.manifest</ApplicationManifest><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <PropertyGroup><Version>1.2.1</Version><OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework><RuntimeIdentifier>win-x64</RuntimeIdentifier><SelfContained>true</SelfContained><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings><ApplicationIcon>app.ico</ApplicationIcon><ApplicationManifest>app.manifest</ApplicationManifest><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
   <ItemGroup><Compile Include="**/*.cs" Exclude="bin/**;obj/**;Tests/**;OrbitClient/**" /></ItemGroup>
   <ItemGroup><Page Remove="Tests/**;OrbitClient/**" /><Resource Include="Assets/**/*.png;Assets/**/*.jpg;Assets/**/*.gif" /></ItemGroup>
   <ItemGroup>

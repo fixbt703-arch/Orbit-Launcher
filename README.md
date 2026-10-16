@@ -39,9 +39,16 @@ For changes to the Minecraft mod, run `client-build.bat` first, then `build.bat`
 
 Run launcher checks with `dotnet run --project Tests/OrbitLauncher.Tests.csproj -c Release`.
 
+The launcher release is 1.2.1. See [RELEASE_AUDIT.md](RELEASE_AUDIT.md) for fixes,
+verification and remaining limits. Async dialog regression checks run with
+`dotnet run --project Tests/OrbitLauncher.Tests.csproj -c Release -- --dialog-async-smoke`.
+Checks use temporary fixtures and do not require a Microsoft account. One component
+integration check is explicitly skipped when the author's protected Skin Layers 3D
+JAR is absent, as in the public source package; see `OrbitClient/libs/README.md`.
+
 Catalog regression check: append three pages in both sources, scroll through the actual WPF cards and resize the window with `dotnet run --project Tests/OrbitLauncher.Tests.csproj -c Release -- --catalog-pagination`. The optional `--probe-curseforge` checks two pages and their icons against the live service using local build configuration.
 
-## Orbit Client 0.14.0
+## Orbit Client 0.18.4
 
 Hold My Items replaces Flair in the PvP filter. Enable it in Right Shift → PvP and hold **R** to inspect items using the original animation pack. Settings include main/off hand rendering, hand visibility, scale, XYZ position, motion intensity, 3D blocks, particles, camera motion and vanilla animations outside inspection. With that option enabled, idle, attacks, item use and their recovery use the native renderer; only holding R starts Hold My Items. Switching renderers clears Lua/model/camera state to prevent animation mixing. Q and F retain their normal actions. Existing Flair enabled state and the inspection key are migrated.
 

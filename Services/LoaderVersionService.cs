@@ -81,10 +81,11 @@ public sealed class LoaderVersionService
     private async Task<IReadOnlyList<LoaderVersionInfo>> GetNeoForgeVersionsAsync(string gameVersion, CancellationToken cancellationToken)
     {
         var parts = gameVersion.Split('.');
-        if (parts.Length < 2 || parts[0] != "1")
+        if (parts.Length < 2 || !parts.All(part => int.TryParse(part, out _)))
             return [];
 
-        var prefix = string.Join('.', parts.Skip(1)) + ".";
+        var prefix = parts[0] == "1" ? string.Join('.', parts.Skip(1)) + "."
+            : gameVersion + (parts.Length == 2 ? ".0." : ".");
         var allVersions = await GetMavenVersionsAsync(_settings.NeoForgeMavenMetadataApi, cancellationToken);
         return allVersions
             .Where(version => version.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))

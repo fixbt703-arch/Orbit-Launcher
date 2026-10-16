@@ -727,7 +727,7 @@ public partial class ModBrowserWindow : Window
 
 	private async Task DownloadProjectAsync(ModSearchResult project, CatalogVersion? selectedVersion = null)
 	{
-		if (_installingModpack || ((object)selectedVersion == null && !project.CanInstall))
+		if (_installingModpack || project.InstallState == CatalogInstallState.Downloading || ((object)selectedVersion == null && !project.CanInstall))
 		{
 			return;
 		}

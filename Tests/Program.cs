@@ -10,6 +10,11 @@ using OrbitLauncher.Services;
 using SkiaSharp;
 
 var json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
+if (args.Length == 1 && args[0] == "--dialog-async-smoke")
+{
+    DialogAsyncSmoke.Run();
+    return;
+}
 if (args.Length == 2 && args[0] == "--probe-head")
 {
     using var client = new HttpClient(new HeadProbeHandler()) { Timeout = TimeSpan.FromSeconds(20) };
@@ -98,6 +103,7 @@ if (args.Length == 3 && args[0] == "--repair")
 var temp = Path.Combine(Path.GetTempPath(), "OrbitMrpackTests", Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(temp);
 int passed = 0;
+int skipped = 0;
 byte[] payload = Encoding.UTF8.GetBytes("verified mod bytes");
 object Entry(string path, string side = "required", string? hash = null, string url = "https://cdn.modrinth.com/test.jar") => new
 {
@@ -131,12 +137,60 @@ GameInstance Instance()
     return instance;
 }
 void Check(bool ok, string message) { if (!ok) throw new Exception(message); }
-async Task Test(string name, Func<Task> test) { await test(); passed++; Console.WriteLine("PASS " + name); }
+async Task Test(string name, Func<Task> test)
+{
+    try { await test(); passed++; Console.WriteLine("PASS " + name); }
+    catch (OptionalFixtureUnavailable ex) { skipped++; Console.WriteLine("SKIP " + name + ": " + ex.Message); }
+}
 async Task MustFail(Func<Task> action) { try { await action(); } catch { return; } throw new Exception("Expected failure"); }
 using var http = new HttpClient(new FakeHandler(payload));
 var installer = new MrpackInstaller(http);
 try
 {
+    passed += await ReleaseAuditSmoke.RunAsync(temp);
+    await Test("instance paths survive Windows code pages without changing display names", () =>
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var method = typeof(InstanceRepository).GetMethod("SafeDirectoryName", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+        foreach (var name in new[] { "Новая сборка", "Бедварс тренировка", "Креатив: сборка?", "Виживання Ґрунт їжак", "日本語 中文 🚀", "Café PVP", "CON.txt", "NUL", "...", new string('Я', 100), "CON." + new string('a', 74) + ".z" })
+        {
+            var folder = (string)method.Invoke(null, new object[] { name })!;
+            Check(folder.Length is > 0 and <= 80 && folder.All(c => c is >= ' ' and < '\u007f'), "non-ASCII or invalid directory length");
+            Check(folder.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && !folder.EndsWith('.') && !folder.EndsWith(' '), "invalid Windows directory name");
+            Check(!new[] { "CON", "NUL" }.Contains(folder.Split('.')[0], StringComparer.OrdinalIgnoreCase), "reserved Windows device name");
+            foreach (var codePage in new[] { 1251, 1252, 932, 65001 })
+            {
+                var encoding = Encoding.GetEncoding(codePage);
+                Check(encoding.GetString(encoding.GetBytes(folder)) == folder, "directory corrupted by Windows code page");
+            }
+        }
+        return Task.CompletedTask;
+    });
+    await Test("existing Unicode instance migration preserves worlds, mods and name without collisions", () =>
+    {
+        var root = Path.Combine(temp, "path-migration"); Directory.CreateDirectory(root);
+        var original = Path.Combine(root, "Новая сборка 🚀");
+        Directory.CreateDirectory(Path.Combine(original, "saves", "world"));
+        Directory.CreateDirectory(Path.Combine(original, "mods"));
+        File.WriteAllBytes(Path.Combine(original, "saves", "world", "level.dat"), payload);
+        File.WriteAllBytes(Path.Combine(original, "mods", "example.jar"), payload);
+        const string name = "Новая сборка 🚀";
+        var instance = new GameInstance { Name = name, DirectoryPath = original };
+        var naming = typeof(InstanceRepository).GetMethod("SafeDirectoryName", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+        var preferred = Path.Combine(root, (string)naming.Invoke(null, new object[] { name })!);
+        Directory.CreateDirectory(preferred); File.WriteAllText(Path.Combine(preferred, "keep.txt"), "other instance");
+        var migrate = typeof(InstanceRepository).GetMethod("EnsureFriendlyDirectory", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+        migrate.Invoke(null, new object[] { instance, root });
+        Check(instance.Name == name && instance.DirectoryPath != original && instance.DirectoryPath != preferred, "display name or colliding directory was changed");
+        Check(Path.GetFileName(instance.DirectoryPath).All(c => c < 128), "migration left non-ASCII folder");
+        Check(File.ReadAllBytes(Path.Combine(instance.DirectoryPath, "saves", "world", "level.dat")).SequenceEqual(payload), "world data changed");
+        Check(File.ReadAllBytes(Path.Combine(instance.ModsPath, "example.jar")).SequenceEqual(payload), "mod data changed");
+        Check(File.ReadAllText(Path.Combine(preferred, "keep.txt")) == "other instance", "colliding instance overwritten");
+        var migrated = instance.DirectoryPath;
+        migrate.Invoke(null, new object[] { instance, root });
+        Check(instance.DirectoryPath == migrated && !Directory.Exists(original), "migration is not stable");
+        return Task.CompletedTask;
+    });
     await Test("new required 3D component upgrades existing Orbit installations and preserves disabled optimizers", async () =>
     {
         var instance = Instance(); instance.LoaderVersion = "0.19.3";
@@ -148,7 +202,7 @@ try
         const string name = "skinlayers3d-fabric-1.11.3-mc26.2.jar";
         DirectoryInfo? root = new(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "OrbitClient", "libs", name))) root = root.Parent;
-        Check(root is not null, "3D component build fixture not found");
+        if (root is null) throw new OptionalFixtureUnavailable("Skin Layers 3D author JAR is intentionally excluded from public source; see OrbitClient/libs/README.md.");
         var component = await File.ReadAllBytesAsync(Path.Combine(root!.FullName, "OrbitClient", "libs", name));
         var downloads = 0;
         using var componentHttp = new HttpClient(new RouteHandler(uri =>
@@ -157,7 +211,8 @@ try
             downloads++; return component;
         }));
         var service = new OrbitClientService(componentHttp);
-        await service.EnsureInstalledAsync(instance);
+        await Task.WhenAll(service.EnsureInstalledAsync(instance),
+            new OrbitClientService(componentHttp).EnsureInstalledAsync(instance));
         Check(downloads == 1 && File.ReadAllBytes(Path.Combine(instance.ModsPath, name)).SequenceEqual(component), "3D component not downloaded and verified");
         Check(File.ReadAllText(receipt) == OrbitClientService.ClientVersion, "client receipt not upgraded");
         Check(File.Exists(Path.Combine(instance.ModsPath, "sodium.jar.disabled")), "optional optimizer was reenabled");
@@ -734,6 +789,7 @@ try
     });
 
     Console.WriteLine($"All {passed} tests passed.");
+    if (skipped > 0) Console.WriteLine($"Optional integration tests skipped: {skipped}.");
 }
 finally
 {
@@ -751,6 +807,8 @@ sealed class HeadProbeHandler : DelegatingHandler
         return response;
     }
 }
+
+sealed class OptionalFixtureUnavailable(string message) : Exception(message);
 
 sealed class FakeHandler(byte[] payload) : HttpMessageHandler
 {

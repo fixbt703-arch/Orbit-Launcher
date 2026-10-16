@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -9,6 +10,7 @@ namespace OrbitLauncher.Services;
 
 public sealed class OrbitClientService(HttpClient httpClient)
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> InstallGates = new(StringComparer.OrdinalIgnoreCase);
     public const string GameVersion = "26.2";
     public const string ClientVersion = "0.18.4";
     public const string JarName = "orbit-client-26.2.jar";
@@ -19,6 +21,15 @@ public sealed class OrbitClientService(HttpClient httpClient)
         CancellationToken cancellationToken = default)
     {
         if (!instance.OrbitClientEnabled) return;
+        var gate = InstallGates.GetOrAdd(Path.GetFullPath(instance.DirectoryPath), _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try { await EnsureInstalledCoreAsync(instance, progress, cancellationToken); }
+        finally { gate.Release(); }
+    }
+
+    private async Task EnsureInstalledCoreAsync(GameInstance instance, IProgress<LaunchProgress>? progress,
+        CancellationToken cancellationToken)
+    {
         if (!Supports(instance.GameVersion, instance.Loader))
             throw new InvalidOperationException("Orbit Client поддерживает только Minecraft 26.2 + Fabric.");
         if (!Version.TryParse(instance.LoaderVersion, out var loaderVersion) || loaderVersion < new Version(0, 19, 3))
@@ -67,12 +78,24 @@ public sealed class OrbitClientService(HttpClient httpClient)
         var packaged = bytes.ToArray();
         if (!File.Exists(ownPath) || !SHA256.HashData(await File.ReadAllBytesAsync(ownPath, cancellationToken)).SequenceEqual(SHA256.HashData(packaged)))
         {
-            var temporary = ownPath + ".tmp";
-            await File.WriteAllBytesAsync(temporary, packaged, cancellationToken);
-            File.Move(temporary, ownPath, true);
+            var temporary = ownPath + ".tmp-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                await File.WriteAllBytesAsync(temporary, packaged, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                File.Move(temporary, ownPath, true);
+            }
+            finally { if (File.Exists(temporary)) File.Delete(temporary); }
         }
         Directory.CreateDirectory(Path.GetDirectoryName(receipt)!);
-        await File.WriteAllTextAsync(receipt, ClientVersion, cancellationToken);
+        var receiptTemporary = receipt + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            await File.WriteAllTextAsync(receiptTemporary, ClientVersion, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Move(receiptTemporary, receipt, true);
+        }
+        finally { if (File.Exists(receiptTemporary)) File.Delete(receiptTemporary); }
         progress?.Report(new LaunchProgress(100, "Orbit Client готов • Right Shift"));
     }
 
@@ -80,7 +103,7 @@ public sealed class OrbitClientService(HttpClient httpClient)
     {
         var uri = new Uri(component.Url);
         if (uri.Scheme != "https" || uri.Host != "cdn.modrinth.com") throw new InvalidDataException("Invalid component source.");
-        var temporary = destination + ".orbit-download";
+        var temporary = destination + ".orbit-download-" + Guid.NewGuid().ToString("N");
         try
         {
             using var response = await httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token);
@@ -90,6 +113,7 @@ public sealed class OrbitClientService(HttpClient httpClient)
                 await input.CopyToAsync(output, token);
             if (!await HashMatchesAsync(temporary, component.Sha512, token))
                 throw new InvalidDataException($"Не совпала контрольная сумма {component.Name}. Повторите установку.");
+            token.ThrowIfCancellationRequested();
             File.Move(temporary, destination, true);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }

@@ -384,7 +384,7 @@ public sealed class CurseForgeService
 
         var fileName = SanitizeFileName(StringValue(file, "fileName", $"{projectId}-{fileId}"));
         var destination = Path.Combine(destinationDirectory, fileName);
-        var temporary = destination + ".part";
+        var temporary = destination + ".part-" + Guid.NewGuid().ToString("N");
         try
         {
             using var response = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -404,8 +404,9 @@ public sealed class CurseForgeService
                         progress?.Report(total * 100d / length.Value);
                 }
             }
+            await ValidateHashAsync(temporary, file, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             File.Move(temporary, destination, true);
-            await ValidateHashAsync(destination, file, cancellationToken);
             return destination;
         }
         catch
@@ -427,7 +428,6 @@ public sealed class CurseForgeService
         var actual = Convert.ToHexString(await SHA1.HashDataAsync(stream, cancellationToken));
         if (!actual.Equals(StringValue(hash, "value"), StringComparison.OrdinalIgnoreCase))
         {
-            File.Delete(path);
             throw new InvalidDataException("Контрольная сумма загруженного файла CurseForge не совпала.");
         }
     }

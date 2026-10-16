@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
+using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using OrbitLauncher.Models;
 using OrbitLauncher.Utilities;
@@ -12,45 +15,66 @@ namespace OrbitLauncher.Services;
 
 public sealed class InstanceRepository
 {
+	private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new(StringComparer.OrdinalIgnoreCase);
+	private readonly string _instancesRoot;
+	private readonly string _minecraftRoot;
+	private readonly SemaphoreSlim _gate;
+	public List<string> LoadWarnings { get; } = new();
+	public InstanceRepository(string? instancesRoot = null, string? minecraftRoot = null)
+	{
+		_instancesRoot = Path.GetFullPath(instancesRoot ?? AppPaths.Instances).TrimEnd(Path.DirectorySeparatorChar);
+		_minecraftRoot = Path.GetFullPath(minecraftRoot ?? AppPaths.Minecraft);
+		_gate = Gates.GetOrAdd(_instancesRoot, _ => new SemaphoreSlim(1, 1));
+	}
+	private async Task<T> LockedAsync<T>(Func<Task<T>> action)
+	{
+		await _gate.WaitAsync();
+		try { return await action(); }
+		finally { _gate.Release(); }
+	}
 	private const string DefinitionFile = "instance.json";
 
 	private static readonly string[] SharedMinecraftDirectories = new string[5] { "assets", "libraries", "runtime", "versions", "resources" };
 
-	public async Task<IReadOnlyList<GameInstance>> GetAllAsync()
+	public Task<IReadOnlyList<GameInstance>> GetAllAsync() => LockedAsync(GetAllCoreAsync);
+	private async Task<IReadOnlyList<GameInstance>> GetAllCoreAsync()
 	{
-		AppPaths.EnsureCreated();
+		Directory.CreateDirectory(_instancesRoot);
+		LoadWarnings.Clear();
 		List<GameInstance> instances = new List<GameInstance>();
-		foreach (string directory in Directory.EnumerateDirectories(AppPaths.Instances).ToList())
+		foreach (string directory in Directory.EnumerateDirectories(_instancesRoot).ToList())
 		{
+			if (System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(directory), @"^\.orbit-new-[0-9a-f]{32}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+				|| (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) continue;
 			string path = Path.Combine(directory, "instance.json");
-			if (!File.Exists(path))
+			if (!File.Exists(path) && !File.Exists(path + ".bak"))
 			{
 				continue;
 			}
 			try
 			{
 				GameInstance instance;
-				await using (FileStream stream = File.OpenRead(path))
-				{
-					instance = await JsonSerializer.DeserializeAsync<GameInstance>(stream, JsonDefaults.Options);
-				}
+				instance = AtomicJsonFile.Read<GameInstance>(path);
 				if (instance != null)
 				{
+					if (string.IsNullOrWhiteSpace(instance.Name)) instance.Name = Path.GetFileName(directory);
+					if (string.IsNullOrWhiteSpace(instance.GameVersion)) throw new InvalidDataException("В описании сборки отсутствует версия Minecraft.");
 					instance.DirectoryPath = directory;
 					await Task.Run(delegate
 					{
-						EnsureFriendlyDirectory(instance);
+						EnsureFriendlyDirectory(instance, _instancesRoot);
 					});
+					instances.Add(instance);
 					await Task.Run(delegate
 					{
-						MigrateSharedMinecraftFiles(instance);
+						MigrateSharedMinecraftFiles(instance, _minecraftRoot);
 					});
 					Directory.CreateDirectory(instance.ModsPath);
-					instances.Add(instance);
 				}
 			}
-			catch
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or ArgumentException)
 			{
+				LoadWarnings.Add(Path.GetFileName(directory) + ": " + ex.Message);
 			}
 		}
 		return (from x in instances
@@ -58,40 +82,59 @@ public sealed class InstanceRepository
 			select x).ToList();
 	}
 
-	public async Task<GameInstance> CreateAsync(GameInstance instance)
+	public Task<GameInstance> CreateAsync(GameInstance instance) => LockedAsync(() => CommitNewAsync(instance));
+	private async Task<GameInstance> CommitNewAsync(GameInstance instance, string? source = null)
 	{
-		AppPaths.EnsureCreated();
+		Directory.CreateDirectory(_instancesRoot);
+		if (string.IsNullOrWhiteSpace(instance.Name) || string.IsNullOrWhiteSpace(instance.GameVersion)) throw new InvalidDataException("Название и версия сборки не могут быть пустыми.");
 		instance.Id = Guid.NewGuid().ToString("N");
-		instance.DirectoryPath = UniqueInstancePath(instance.Name);
-		Directory.CreateDirectory(instance.DirectoryPath);
-		Directory.CreateDirectory(instance.ModsPath);
-		Directory.CreateDirectory(Path.Combine(instance.DirectoryPath, ".orbit"));
-		await SaveAsync(instance);
-		return instance;
+		var stage = Path.GetFullPath(Path.Combine(_instancesRoot, ".orbit-new-" + Guid.NewGuid().ToString("N")));
+		try
+		{
+			if (source is not null) await Task.Run(() => CopyDirectory(source, stage, skipDefinition: true));
+			instance.DirectoryPath = stage;
+			Directory.CreateDirectory(instance.ModsPath);
+			Directory.CreateDirectory(Path.Combine(stage, ".orbit"));
+			await AtomicJsonFile.SaveAsync(Path.Combine(stage, DefinitionFile), instance);
+			var destination = UniqueInstancePath(instance.Name, instancesRoot: _instancesRoot);
+			Directory.Move(stage, destination);
+			instance.DirectoryPath = destination;
+			return instance;
+		}
+		catch
+		{
+			if (Path.GetDirectoryName(stage) == _instancesRoot && Path.GetFileName(stage).StartsWith(".orbit-new-", StringComparison.Ordinal)
+				&& Directory.Exists(stage)) Directory.Delete(stage, recursive: true);
+			instance.DirectoryPath = string.Empty;
+			throw;
+		}
 	}
 
-	public async Task SaveAsync(GameInstance instance)
+	public Task SaveAsync(GameInstance instance) => LockedAsync(async () => { await SaveCoreAsync(instance); return true; });
+	private async Task SaveCoreAsync(GameInstance instance)
 	{
 		if (string.IsNullOrWhiteSpace(instance.DirectoryPath))
 		{
 			throw new InvalidOperationException("У сборки не указан каталог.");
 		}
+		if (!string.Equals(Path.GetDirectoryName(Path.GetFullPath(instance.DirectoryPath).TrimEnd(Path.DirectorySeparatorChar)), _instancesRoot, StringComparison.OrdinalIgnoreCase))
+			throw new IOException("Сборка находится вне папки instances.");
 		await Task.Run(delegate
 		{
-			EnsureFriendlyDirectory(instance);
+			EnsureFriendlyDirectory(instance, _instancesRoot);
 		});
 		Directory.CreateDirectory(instance.DirectoryPath);
 		string destination = Path.Combine(instance.DirectoryPath, "instance.json");
-		string temporary = destination + ".tmp";
-		await using (FileStream stream = File.Create(temporary))
-		{
-			await JsonSerializer.SerializeAsync(stream, instance, JsonDefaults.Options);
-		}
-		File.Move(temporary, destination, overwrite: true);
+		await AtomicJsonFile.SaveAsync(destination, instance);
 	}
 
-	public async Task DeleteAsync(GameInstance instance)
+	public Task DeleteAsync(GameInstance instance) => LockedAsync(async () => { await DeleteCoreAsync(instance); return true; });
+	private async Task DeleteCoreAsync(GameInstance instance)
 	{
+		var directory = Path.GetFullPath(instance.DirectoryPath).TrimEnd(Path.DirectorySeparatorChar);
+		if (!string.Equals(Path.GetDirectoryName(directory), _instancesRoot, StringComparison.OrdinalIgnoreCase)
+			|| (Directory.Exists(directory) && (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0))
+			throw new IOException("Удаление разрешено только для сборки внутри папки instances.");
 		if (!Directory.Exists(instance.DirectoryPath))
 		{
 			return;
@@ -117,41 +160,33 @@ public sealed class InstanceRepository
 		}
 	}
 
-	public async Task<GameInstance> DuplicateAsync(GameInstance source)
+	public Task<GameInstance> DuplicateAsync(GameInstance source) => LockedAsync(async () =>
 	{
 		GameInstance clone = source.CloneDefinition();
 		clone.Name = source.Name + " — копия";
-		await CreateAsync(clone);
-		CopyDirectory(source.DirectoryPath, clone.DirectoryPath, skipDefinition: true);
 		clone.IconFile = source.IconFile;
-		await SaveAsync(clone);
-		return clone;
-	}
+		return await CommitNewAsync(clone, source.DirectoryPath);
+	});
 
 	public Task ExportAsync(GameInstance instance, string zipPath)
 	{
-		if (File.Exists(zipPath))
-		{
-			File.Delete(zipPath);
-		}
-		ZipFile.CreateFromDirectory(instance.DirectoryPath, zipPath, CompressionLevel.Optimal, includeBaseDirectory: false);
-		return Task.CompletedTask;
+		return Task.Run(() => InstanceArchive.Export(instance.DirectoryPath, zipPath));
 	}
 
-	public async Task<GameInstance> ImportAsync(string zipPath)
+	public Task<GameInstance> ImportAsync(string zipPath) => LockedAsync(() => ImportCoreAsync(zipPath));
+	private async Task<GameInstance> ImportCoreAsync(string zipPath)
 	{
 		string temporary = Path.Combine(Path.GetTempPath(), "OrbitLauncher", Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(temporary);
 		try
 		{
-			ZipFile.ExtractToDirectory(zipPath, temporary);
+			await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, temporary));
 			string definition = Directory.EnumerateFiles(temporary, "instance.json", SearchOption.AllDirectories).FirstOrDefault();
 			GameInstance instance;
 			string contentRoot;
 			if (definition != null)
 			{
-				await using FileStream stream = File.OpenRead(definition);
-				instance = (await JsonSerializer.DeserializeAsync<GameInstance>(stream, JsonDefaults.Options)) ?? new GameInstance();
+				instance = AtomicJsonFile.Read<GameInstance>(definition) ?? throw new InvalidDataException("ZIP содержит пустое описание сборки.");
 				contentRoot = Path.GetDirectoryName(definition);
 			}
 			else
@@ -162,39 +197,36 @@ public sealed class InstanceRepository
 				};
 				contentRoot = temporary;
 			}
-			GameInstance imported = await CreateAsync(instance.CloneDefinition());
+			GameInstance imported = instance.CloneDefinition();
 			imported.Name = instance.Name + " — импорт";
-			CopyDirectory(contentRoot, imported.DirectoryPath, skipDefinition: true);
-			imported.IconFile = instance.IconFile;
-			await SaveAsync(imported);
-			return imported;
+			imported.IconFile = Path.GetFileName(instance.IconFile ?? string.Empty);
+			imported.JavaPath = string.Empty;
+			imported.LaunchVersionId = string.Empty;
+			return await CommitNewAsync(imported, contentRoot!);
 		}
 		finally
 		{
 			if (Directory.Exists(temporary))
 			{
-				Directory.Delete(temporary, recursive: true);
+				var resolved = Path.GetFullPath(temporary);
+				var expectedParent = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "OrbitLauncher"));
+				if (string.Equals(Path.GetDirectoryName(resolved), expectedParent, StringComparison.OrdinalIgnoreCase)
+					&& Guid.TryParseExact(Path.GetFileName(resolved), "N", out _))
+				{
+					try { await Task.Run(() => Directory.Delete(resolved, recursive: true)); }
+					catch (IOException) { }
+					catch (UnauthorizedAccessException) { }
+				}
 			}
 		}
 	}
 
 	private static void CopyDirectory(string source, string destination, bool skipDefinition)
 	{
-		Directory.CreateDirectory(destination);
-		foreach (string item in Directory.EnumerateFiles(source))
-		{
-			if (!skipDefinition || !string.Equals(Path.GetFileName(item), "instance.json", StringComparison.OrdinalIgnoreCase))
-			{
-				File.Copy(item, Path.Combine(destination, Path.GetFileName(item)), overwrite: true);
-			}
-		}
-		foreach (string item2 in Directory.EnumerateDirectories(source))
-		{
-			CopyDirectory(item2, Path.Combine(destination, Path.GetFileName(item2)), skipDefinition: false);
-		}
+		InstanceArchive.Copy(source, destination, skipDefinition);
 	}
 
-	private static void EnsureFriendlyDirectory(GameInstance instance)
+	private static void EnsureFriendlyDirectory(GameInstance instance, string? instancesRoot = null)
 	{
 		if (string.IsNullOrWhiteSpace(instance.DirectoryPath) || !Directory.Exists(instance.DirectoryPath))
 		{
@@ -206,7 +238,7 @@ public sealed class InstanceRepository
 		{
 			return;
 		}
-		string text2 = UniqueInstancePath(instance.Name, text);
+		string text2 = UniqueInstancePath(instance.Name, text, instancesRoot);
 		if (string.Equals(text, text2, StringComparison.OrdinalIgnoreCase))
 		{
 			return;
@@ -224,13 +256,13 @@ public sealed class InstanceRepository
 		}
 	}
 
-	private static string UniqueInstancePath(string name, string? currentPath = null)
+	private static string UniqueInstancePath(string name, string? currentPath = null, string? instancesRoot = null)
 	{
 		string text = SafeDirectoryName(name);
 		for (int i = 1; i < 10000; i++)
 		{
 			string path = ((i == 1) ? text : $"{text} ({i})");
-			string fullPath = Path.GetFullPath(Path.Combine(AppPaths.Instances, path));
+			string fullPath = Path.GetFullPath(Path.Combine(instancesRoot ?? AppPaths.Instances, path));
 			if (currentPath != null && string.Equals(fullPath, currentPath, StringComparison.OrdinalIgnoreCase))
 			{
 				return fullPath;
@@ -240,45 +272,67 @@ public sealed class InstanceRepository
 				return fullPath;
 			}
 		}
-		return Path.Combine(AppPaths.Instances, $"{text}-{Guid.NewGuid():N}".Substring(0, Math.Min(text.Length + 9, 88)));
+		return Path.Combine(instancesRoot ?? AppPaths.Instances, $"{text}-{Guid.NewGuid():N}".Substring(0, Math.Min(text.Length + 9, 88)));
 	}
 
 	private static string SafeDirectoryName(string name)
 	{
-		HashSet<char> invalid = Path.GetInvalidFileNameChars().ToHashSet();
-		string text = new string((from character in name.Trim()
-			select (!invalid.Contains(character)) ? character : '_').ToArray());
+		// The Windows Java launcher converts argv through the system ANSI code page.
+		// Keep physical directory names ASCII; the display name stays unchanged.
+		const string cyrillic = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяіїєґ";
+		string[] latin = { "a", "b", "v", "g", "d", "e", "yo", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u", "f", "kh", "ts", "ch", "sh", "shch", "", "y", "", "e", "yu", "ya", "i", "yi", "ye", "g" };
+		var directoryName = new StringBuilder();
+		foreach (char character in name.Trim().Normalize(NormalizationForm.FormD))
+		{
+			int index = cyrillic.IndexOf(char.ToLowerInvariant(character));
+			if (index >= 0)
+			{
+				string value = latin[index];
+				if (char.IsUpper(character) && value.Length > 0) value = char.ToUpperInvariant(value[0]) + value.Substring(1);
+				directoryName.Append(value);
+			}
+			else if (character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or ' ' or '-' or '_' or '(' or ')' or '.')
+			{
+				directoryName.Append(character);
+			}
+			else if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+			{
+				directoryName.Append(' ');
+			}
+		}
+		string text = directoryName.ToString();
 		text = string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Trim().TrimEnd('.');
+		if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^\.orbit-new-[0-9a-f]{32}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) text = "_" + text;
 		if (string.IsNullOrWhiteSpace(text))
 		{
-			text = "Сборка";
+			text = "Instance";
 		}
 		if (text.Length > 80)
 		{
-			text = text.Substring(0, 80).TrimEnd();
+			text = text.Substring(0, 80).TrimEnd(' ', '.');
 		}
 		if (!new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 		{
 			"CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6",
 			"COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7",
 			"LPT8", "LPT9"
-		}.Contains(text))
+		}.Contains(text.Split('.')[0].TrimEnd(' ')))
 		{
 			return text;
 		}
-		return "_" + text;
+		return "_" + text.Substring(0, Math.Min(text.Length, 79)).TrimEnd(' ', '.');
 	}
 
-	private static void MigrateSharedMinecraftFiles(GameInstance instance)
+	private static void MigrateSharedMinecraftFiles(GameInstance instance, string sharedRoot)
 	{
-		Directory.CreateDirectory(AppPaths.Minecraft);
+		Directory.CreateDirectory(sharedRoot);
 		string[] sharedMinecraftDirectories = SharedMinecraftDirectories;
 		foreach (string path in sharedMinecraftDirectories)
 		{
 			string text = Path.Combine(instance.DirectoryPath, path);
 			if (Directory.Exists(text))
 			{
-				string destination = Path.Combine(AppPaths.Minecraft, path);
+				string destination = Path.Combine(sharedRoot, path);
 				MergeDirectory(text, destination);
 			}
 		}
@@ -286,6 +340,8 @@ public sealed class InstanceRepository
 
 	private static void MergeDirectory(string source, string destination)
 	{
+		if ((File.GetAttributes(source) & FileAttributes.ReparsePoint) != 0) throw new IOException("Перенос файлов по ссылке остановлен: " + source);
+		if (Directory.Exists(destination) && (File.GetAttributes(destination) & FileAttributes.ReparsePoint) != 0) throw new IOException("Общий каталог является ссылкой: " + destination);
 		Directory.CreateDirectory(destination);
 		foreach (string item in Directory.EnumerateDirectories(source).ToList())
 		{
@@ -293,6 +349,7 @@ public sealed class InstanceRepository
 		}
 		foreach (string item2 in Directory.EnumerateFiles(source).ToList())
 		{
+			if ((File.GetAttributes(item2) & FileAttributes.ReparsePoint) != 0) throw new IOException("Перенос файла по ссылке остановлен: " + item2);
 			string text = Path.Combine(destination, Path.GetFileName(item2));
 			try
 			{
@@ -303,11 +360,16 @@ public sealed class InstanceRepository
 				}
 				FileInfo fileInfo = new FileInfo(item2);
 				FileInfo fileInfo2 = new FileInfo(text);
-				if (fileInfo.Length != fileInfo2.Length && fileInfo.LastWriteTimeUtc > fileInfo2.LastWriteTimeUtc)
+				// Different bytes are a conflict, even if lengths and timestamps match.
+				// Retain both originals instead of silently discarding an instance's copy.
+				if (fileInfo.Length == fileInfo2.Length)
 				{
-					File.Copy(item2, text, overwrite: true);
+					bool identical;
+					using (var left = File.OpenRead(item2))
+					using (var right = File.OpenRead(text))
+						identical = System.Security.Cryptography.SHA256.HashData(left).SequenceEqual(System.Security.Cryptography.SHA256.HashData(right));
+					if (identical) File.Delete(item2);
 				}
-				File.Delete(item2);
 			}
 			catch (IOException)
 			{

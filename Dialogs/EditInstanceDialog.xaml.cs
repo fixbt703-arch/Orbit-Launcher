@@ -34,6 +34,7 @@ public partial class EditInstanceDialog : Window
 	private CancellationTokenSource? _refreshCancellation;
 
 	private bool _updatingOrbitClient;
+	private bool _closed;
 
 
 	public ObservableCollection<LoaderVersionInfo> LoaderVersions { get; } = new ObservableCollection<LoaderVersionInfo>();
@@ -75,7 +76,9 @@ public partial class EditInstanceDialog : Window
 		};
 		base.Closed += delegate
 		{
+			_closed = true;
 			_refreshCancellation?.Cancel();
+			_refreshCancellation?.Dispose();
 		};
 	}
 
@@ -102,6 +105,8 @@ public partial class EditInstanceDialog : Window
 				GameVersionBox.Text = "26.2";
 				LoaderBox.SelectedIndex = 1;
 				await RefreshLoaderVersionsAsync();
+				if (_closed) return;
+				if (OrbitClientCheck.IsChecked != enabled) { ApplyOrbitClientLock(OrbitClientCheck.IsChecked == true); return; }
 				Version result;
 				LoaderVersionInfo loaderVersionInfo = LoaderVersions.FirstOrDefault((LoaderVersionInfo version) => Version.TryParse(version.Id, out result) && result >= new Version(0, 19, 3));
 				if (loaderVersionInfo == null)
@@ -132,31 +137,36 @@ public partial class EditInstanceDialog : Window
 	{
 		if (base.IsLoaded)
 		{
-			await Task.Delay(350);
-			if (GameVersionBox.IsKeyboardFocusWithin)
-			{
-				await RefreshLoaderVersionsAsync();
-			}
+			await RefreshLoaderVersionsAsync(debounceMilliseconds: 350);
 		}
 	}
 
-	private async Task RefreshLoaderVersionsAsync(string? selectVersion = null)
+	private async Task RefreshLoaderVersionsAsync(string? selectVersion = null, int debounceMilliseconds = 0)
 	{
+		if (_closed) return;
 		_refreshCancellation?.Cancel();
 		_refreshCancellation?.Dispose();
 		_refreshCancellation = new CancellationTokenSource();
+		var request = _refreshCancellation;
+		var token = request.Token;
+		SaveButton.IsEnabled = false;
 		LoaderVersions.Clear();
 		LoaderVersionBox.IsEnabled = false;
 		string selectedLoader = SelectedLoader;
+		string gameVersion = GameVersionBox.Text.Trim();
 		if (selectedLoader == "Vanilla")
 		{
 			LoaderVersionStatusText.Text = LocalizationService.Translate("Не требуется");
+			SaveButton.IsEnabled = true;
 			return;
 		}
 		LoaderVersionStatusText.Text = LocalizationService.Translate("Загрузка…");
 		try
 		{
-			foreach (LoaderVersionInfo item in await _loaderVersionService.GetVersionsAsync(selectedLoader, GameVersionBox.Text.Trim(), _refreshCancellation.Token))
+			if (debounceMilliseconds > 0) await Task.Delay(debounceMilliseconds, token);
+			var versions = await _loaderVersionService.GetVersionsAsync(selectedLoader, gameVersion, token);
+			if (_closed || token.IsCancellationRequested || !ReferenceEquals(request, _refreshCancellation)) return;
+			foreach (LoaderVersionInfo item in versions)
 			{
 				LoaderVersions.Add(item);
 			}
@@ -173,7 +183,18 @@ public partial class EditInstanceDialog : Window
 		}
 		catch
 		{
+			if (_closed || token.IsCancellationRequested || !ReferenceEquals(request, _refreshCancellation)) return;
+			if (gameVersion == _originalGameVersion && selectedLoader == _originalLoader && !string.IsNullOrWhiteSpace(_originalLoaderVersion))
+			{
+				LoaderVersions.Add(new LoaderVersionInfo { Id = _originalLoaderVersion });
+				LoaderVersionBox.SelectedIndex = 0;
+				LoaderVersionBox.IsEnabled = true;
+			}
 			LoaderVersionStatusText.Text = LocalizationService.Translate("Список недоступен");
+		}
+		finally
+		{
+			if (!_closed && ReferenceEquals(request, _refreshCancellation)) SaveButton.IsEnabled = LoaderVersionBox.SelectedItem is LoaderVersionInfo;
 		}
 	}
 

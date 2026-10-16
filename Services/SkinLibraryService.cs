@@ -9,27 +9,38 @@ namespace OrbitLauncher.Services;
 
 public sealed class SkinLibraryService
 {
+    private readonly string _skins;
+    private readonly string _index;
+    public SkinLibraryService(string? skinsDirectory = null)
+    {
+        _skins = Path.GetFullPath(skinsDirectory ?? AppPaths.Skins);
+        _index = Path.Combine(_skins, "library.json");
+    }
     public async Task<IReadOnlyList<SkinLibraryItem>> LoadAsync()
     {
-        AppPaths.EnsureCreated();
-        if (!File.Exists(AppPaths.SkinLibraryFile))
+        Directory.CreateDirectory(_skins);
+        if (!File.Exists(_index) && !File.Exists(_index + ".bak"))
             return [];
 
         try
         {
-            await using var stream = File.OpenRead(AppPaths.SkinLibraryFile);
-            var items = await JsonSerializer.DeserializeAsync<List<SkinLibraryItem>>(stream, JsonDefaults.Options) ?? [];
+            var items = AtomicJsonFile.Read<List<SkinLibraryItem>>(_index) ?? [];
             var valid = new List<SkinLibraryItem>();
             foreach (var item in items)
             {
-                item.FilePath = Path.Combine(AppPaths.Skins, Path.GetFileName(item.FileName));
-                if (!File.Exists(item.FilePath))
-                    continue;
-                var bytes = await File.ReadAllBytesAsync(item.FilePath);
-                var bitmap = MinecraftSkinService.DecodeSkin(bytes);
-                item.Variant = MinecraftSkinService.NormalizeVariant(item.Variant);
-                item.Preview = CreateFrontPreview(bitmap, item.Variant == "slim");
-                valid.Add(item);
+                try
+                {
+                    if (item is null || string.IsNullOrWhiteSpace(item.FileName)) continue;
+                    item.FilePath = Path.Combine(_skins, Path.GetFileName(item.FileName));
+                    if (!File.Exists(item.FilePath))
+                        continue;
+                    var bytes = await File.ReadAllBytesAsync(item.FilePath);
+                    var bitmap = MinecraftSkinService.DecodeSkin(bytes);
+                    item.Variant = MinecraftSkinService.NormalizeVariant(item.Variant);
+                    item.Preview = CreateFrontPreview(bitmap, item.Variant == "slim");
+                    valid.Add(item);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException or FormatException) { }
             }
             return valid;
         }
@@ -43,10 +54,11 @@ public sealed class SkinLibraryService
     {
         var bytes = await File.ReadAllBytesAsync(sourcePath);
         var bitmap = MinecraftSkinService.DecodeSkin(bytes);
-        AppPaths.EnsureCreated();
+        Directory.CreateDirectory(_skins);
         var id = Guid.NewGuid().ToString("N");
         var fileName = id + ".png";
-        var destination = Path.Combine(AppPaths.Skins, fileName);
+        var destination = Path.Combine(_skins, fileName);
+        variant = MinecraftSkinService.NormalizeVariant(variant);
         await File.WriteAllBytesAsync(destination, bytes);
         return new SkinLibraryItem
         {
@@ -59,20 +71,19 @@ public sealed class SkinLibraryService
         };
     }
 
-    public async Task SaveAsync(IEnumerable<SkinLibraryItem> items)
-    {
-        AppPaths.EnsureCreated();
-        var temporary = AppPaths.SkinLibraryFile + ".tmp";
-        await using (var stream = File.Create(temporary))
-            await JsonSerializer.SerializeAsync(stream, items, JsonDefaults.Options);
-        File.Move(temporary, AppPaths.SkinLibraryFile, true);
-    }
+    public Task SaveAsync(IEnumerable<SkinLibraryItem> items) => AtomicJsonFile.SaveAsync(_index, items.ToList());
 
     public async Task DeleteAsync(SkinLibraryItem item, IEnumerable<SkinLibraryItem> remainingItems)
     {
+        var path = Path.GetFullPath(item.FilePath);
+        if (!string.Equals(Path.GetDirectoryName(path), _skins, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(Path.GetExtension(path), ".png", StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Удаление разрешено только для PNG внутри библиотеки скинов.");
+        var fallback = remainingItems.ToList();
+        await AtomicJsonFile.UpdateAsync<List<SkinLibraryItem>>(_index, saved =>
+            (saved ?? fallback).Where(existing => existing.Id != item.Id && existing.FileName != item.FileName).ToList());
         if (File.Exists(item.FilePath))
             File.Delete(item.FilePath);
-        await SaveAsync(remainingItems);
     }
 
     public static BitmapSource CreateFrontPreview(BitmapSource skin, bool slim)

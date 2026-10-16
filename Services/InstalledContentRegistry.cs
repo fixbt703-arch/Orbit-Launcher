@@ -15,14 +15,12 @@ public sealed class InstalledContentRegistry
     public IReadOnlyList<InstalledContentRecord> Load(GameInstance instance)
     {
         var path = RegistryPath(instance);
-        if (!File.Exists(path))
+        if (!File.Exists(path) && !File.Exists(path + ".bak"))
             return [];
 
         try
         {
-            return JsonSerializer.Deserialize<List<InstalledContentRecord>>(
-                       File.ReadAllText(path), JsonDefaults.Options)
-                   ?? [];
+            return AtomicJsonFile.Read<List<InstalledContentRecord>>(path) ?? [];
         }
         catch
         {
@@ -61,34 +59,32 @@ public sealed class InstalledContentRegistry
         CatalogInstallState state,
         string destinationPath)
     {
-        var records = Load(instance).ToList();
-        records.RemoveAll(record =>
-            string.Equals(record.SourceId, project.SourceId, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(record.ProjectId, project.ProjectId, StringComparison.OrdinalIgnoreCase));
-
+        var root = Path.GetFullPath(instance.DirectoryPath).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (!Path.GetFullPath(destinationPath).StartsWith(root, StringComparison.OrdinalIgnoreCase)) return;
         var relativePath = Path.GetRelativePath(instance.DirectoryPath, destinationPath);
         if (relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
             || Path.IsPathRooted(relativePath))
             return;
 
-        records.Add(new InstalledContentRecord
+        await AtomicJsonFile.UpdateAsync<List<InstalledContentRecord>>(RegistryPath(instance), saved =>
         {
-            SourceId = project.SourceId,
-            ProjectId = project.ProjectId,
-            Title = project.Title,
-            IconUrl = project.IconUrl,
-            ProjectType = project.ProjectType,
-            RelativePath = relativePath,
-            State = state == CatalogInstallState.Downloaded ? "downloaded" : "installed",
-            InstalledAt = DateTime.UtcNow
-        });
+            var records = saved ?? [];
+            records.RemoveAll(record => string.Equals(record.SourceId, project.SourceId, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(record.ProjectId, project.ProjectId, StringComparison.OrdinalIgnoreCase));
+            records.Add(new InstalledContentRecord
+            {
+                SourceId = project.SourceId,
+                ProjectId = project.ProjectId,
+                Title = project.Title,
+                IconUrl = project.IconUrl,
+                ProjectType = project.ProjectType,
+                RelativePath = relativePath,
+                State = state == CatalogInstallState.Downloaded ? "downloaded" : "installed",
+                InstalledAt = DateTime.UtcNow
+            });
 
-        var directory = Path.Combine(instance.DirectoryPath, ".orbit");
-        Directory.CreateDirectory(directory);
-        var destination = RegistryPath(instance);
-        var temporary = destination + ".tmp";
-        await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(records, JsonDefaults.Options));
-        File.Move(temporary, destination, true);
+            return records;
+        });
     }
 
     private static string RegistryPath(GameInstance instance) =>

@@ -95,7 +95,7 @@ function Export-OrbitPublicSource {
             }
         }
     }
-    $files = @('.gitignore','LICENSE','README.md','OrbitLauncher.csproj','app.ico','app.manifest','app.xaml',
+    $files = @('.gitignore','LICENSE','README.md','RELEASE_AUDIT.md','OrbitLauncher.csproj','app.ico','app.manifest','app.xaml',
         'App.xaml.cs','GlobalUsings.cs','mainwindow.xaml','MainWindow.xaml.cs','build.bat',
         'cleaning.bat','client-build.bat','sign-file.bat','Utilities\AppConfiguration.Local.cs.example',
         'installer\OrbitLauncher.iss','tools\Build-GitHub.ps1','tools\Export-PublicSource.ps1','tools\GitHub-README.ru.txt','tools\Release-Probe.cs.txt',

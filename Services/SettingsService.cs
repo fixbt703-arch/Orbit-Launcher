@@ -8,36 +8,19 @@ namespace OrbitLauncher.Services;
 
 public sealed class SettingsService
 {
-	public async Task<LauncherSettings> LoadAsync()
+	private readonly string _path;
+	public SettingsService(string? path = null) => _path = path ?? AppPaths.SettingsFile;
+	public Task<LauncherSettings> LoadAsync()
 	{
-		AppPaths.EnsureCreated();
-		if (!File.Exists(AppPaths.SettingsFile))
-		{
-			return new LauncherSettings();
-		}
 		try
 		{
-			LauncherSettings result;
-			await using (FileStream stream = File.OpenRead(AppPaths.SettingsFile))
-			{
-				result = (await JsonSerializer.DeserializeAsync<LauncherSettings>(stream, JsonDefaults.Options)) ?? new LauncherSettings();
-			}
-			return result;
+			return Task.FromResult(AtomicJsonFile.Read<LauncherSettings>(_path) ?? new LauncherSettings());
 		}
-		catch
+		catch (JsonException)
 		{
-			return new LauncherSettings();
+			return Task.FromResult(new LauncherSettings());
 		}
 	}
 
-	public async Task SaveAsync(LauncherSettings settings)
-	{
-		AppPaths.EnsureCreated();
-		string temporary = AppPaths.SettingsFile + ".tmp";
-		await using (FileStream stream = File.Create(temporary))
-		{
-			await JsonSerializer.SerializeAsync(stream, settings, JsonDefaults.Options);
-		}
-		File.Move(temporary, AppPaths.SettingsFile, overwrite: true);
-	}
+	public Task SaveAsync(LauncherSettings settings) => AtomicJsonFile.SaveAsync(_path, settings);
 }

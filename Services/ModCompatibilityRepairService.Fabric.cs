@@ -404,15 +404,6 @@ public sealed partial class ModCompatibilityRepairService
         catch { return 0; }
     }
 
-    private static async Task SaveJavaSelectionAsync(GameInstance instance)
-    {
-        var destination = Path.Combine(instance.DirectoryPath, "instance.json");
-        var temporary = destination + ".tmp";
-        try
-        {
-            await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(instance, JsonDefaults.Options));
-            File.Move(temporary, destination, true);
-        }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
-    }
+    private static Task SaveJavaSelectionAsync(GameInstance instance) =>
+        AtomicJsonFile.SaveAsync(Path.Combine(instance.DirectoryPath, "instance.json"), instance);
 }

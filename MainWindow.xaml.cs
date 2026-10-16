@@ -171,6 +171,9 @@ public partial class MainWindow : Window
 		await _authService.TryRestoreSessionAsync(_settings);
 		await UpdateAccountCardAsync();
 		LocalizationService.Apply(this);
+		if (_instanceRepository.LoadWarnings.Count > 0)
+			ShowStatus(LocalizationService.IsEnglish ? "Some instance definitions could not be read. Their files were kept."
+				: "Не удалось прочитать часть сборок. Их файлы сохранены.");
 	}
 
 	private void PopulateSettingsControls()

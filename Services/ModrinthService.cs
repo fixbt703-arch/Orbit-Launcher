@@ -627,22 +627,14 @@ public sealed class ModrinthService
 		string path = SanitizeFileName(file.GetProperty("filename").GetString() ?? fallbackName);
 		string url = file.GetProperty("url").GetString() ?? throw new InvalidDataException("Modrinth не вернул ссылку на файл.");
 		string destination = Path.Combine(destinationDirectory, path);
-		await DownloadFileAsync(url, destination, progress, cancellationToken);
-		if (file.TryGetProperty("hashes", out var value) && value.TryGetProperty("sha512", out var sha512))
-		{
-			await using FileStream checkStream = File.OpenRead(destination);
-			if (!Convert.ToHexString(await SHA512.HashDataAsync(checkStream, cancellationToken)).Equals(sha512.GetString(), StringComparison.OrdinalIgnoreCase))
-			{
-				File.Delete(destination);
-				throw new InvalidDataException("Контрольная сумма загруженного файла не совпала.");
-			}
-		}
+		string? hash = file.TryGetProperty("hashes", out var value) && value.TryGetProperty("sha512", out var sha512) ? sha512.GetString() : null;
+		await DownloadFileAsync(url, destination, progress, cancellationToken, hash);
 		return destination;
 	}
 
-	private async Task DownloadFileAsync(string url, string destination, IProgress<double>? progress, CancellationToken cancellationToken)
+	private async Task DownloadFileAsync(string url, string destination, IProgress<double>? progress, CancellationToken cancellationToken, string? expectedSha512 = null)
 	{
-		string temporary = destination + ".part";
+		string temporary = destination + ".part-" + Guid.NewGuid().ToString("N");
 		try
 		{
 			using HttpResponseMessage response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -669,6 +661,13 @@ public sealed class ModrinthService
 					}
 				}
 			}
+			if (expectedSha512 is not null)
+			{
+				await using var checkStream = File.OpenRead(temporary);
+				if (!Convert.ToHexString(await SHA512.HashDataAsync(checkStream, cancellationToken)).Equals(expectedSha512, StringComparison.OrdinalIgnoreCase))
+					throw new InvalidDataException("Контрольная сумма загруженного файла не совпала.");
+			}
+			cancellationToken.ThrowIfCancellationRequested();
 			File.Move(temporary, destination, overwrite: true);
 		}
 		catch
