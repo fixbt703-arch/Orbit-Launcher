@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "platform": "windows-x86_64",
+  "distribution": "direct pinned upstream downloads; no native binaries embedded in launcher",
+  "components": [
+    { "name": "EasyTier", "version": "2.6.4", "license": "LGPL-3.0", "source": "https://github.com/EasyTier/EasyTier/tree/v2.6.4", "download": "https://github.com/EasyTier/EasyTier/releases/download/v2.6.4/easytier-windows-x86_64-v2.6.4.zip", "sha256": "27af91e270e554709b048bd32327fefd2dfce5062ae1e8701af7550c6f525f84", "installedFiles": ["easytier-core.exe", "easytier-cli.exe", "Packet.dll"], "driversInstalled": false },
+    { "name": "Terracotta", "version": "0.4.2", "license": "AGPL-3.0-or-later WITH upstream binary-aggregation/IPC exception", "source": "https://github.com/burningtnt/Terracotta/tree/v0.4.2", "download": "https://github.com/burningtnt/Terracotta/releases/download/v0.4.2/terracotta-0.4.2-windows-x86_64-pkg.tar.gz", "sha256": "07ebe139e3ca5f74576e58b1a96efe59abdfbe148d3f1a49bfdca8b6f70745f0", "installedFiles": ["terracotta-0.4.2-windows-x86_64.exe", "VCRUNTIME140.DLL"] },
+    { "name": "ASM", "version": "9.11", "license": "BSD-3-Clause", "source": "https://gitlab.ow2.org/asm/asm/-/tree/ASM_9_11", "sha256": "5fe3b469b8646e5bc53a897840952d63b712d4923d2a7a26aebc585f1fec7676", "relocated": "org.orbitlauncher.connect.internal.asm" }
+  ],
+  "nodeQualification": "2026-10-19; short real encrypted relay transfer on current ISP, not universal uptime guarantee"
+}

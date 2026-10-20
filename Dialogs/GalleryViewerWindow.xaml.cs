@@ -68,7 +68,7 @@ public partial class GalleryViewerWindow : Window
 		ResizeImage();
 		try
 		{
-			BitmapSource bitmapSource = await _imageCache.GetAsync(modGalleryImage.Url, 2200, token);
+			BitmapSource? bitmapSource = await _imageCache.GetAsync(modGalleryImage.Url, 2200, token);
 			if (!token.IsCancellationRequested && bitmapSource != null)
 			{
 				LargeImage.Source = bitmapSource;

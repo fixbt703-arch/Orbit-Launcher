@@ -87,6 +87,22 @@ public sealed class InstalledContentRegistry
         });
     }
 
+    public Task MarkManyAsync(GameInstance instance, IReadOnlyList<(ModSearchResult Project, string Path)> files) =>
+        AtomicJsonFile.UpdateAsync<List<InstalledContentRecord>>(RegistryPath(instance), saved =>
+        {
+            var records = saved ?? [];
+            foreach (var (project, path) in files)
+            {
+                var relative = Path.GetRelativePath(instance.DirectoryPath, path);
+                if (Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                    throw new IOException("Файл мода находится вне сборки.");
+                records.RemoveAll(record => record.SourceId == project.SourceId && record.ProjectId == project.ProjectId);
+                records.Add(new InstalledContentRecord { SourceId = project.SourceId, ProjectId = project.ProjectId,
+                    Title = project.Title, ProjectType = "mod", RelativePath = relative, InstalledAt = DateTime.UtcNow });
+            }
+            return records;
+        });
+
     private static string RegistryPath(GameInstance instance) =>
         Path.Combine(instance.DirectoryPath, ".orbit", RegistryFileName);
 }

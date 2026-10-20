@@ -144,6 +144,8 @@ public sealed class GameInstance : ObservableObject
 
 	public bool OrbitClientEnabled { get; set; }
 
+	public bool OrbitConnectEnabled { get; set; }
+
 	[JsonIgnore]
 	public string DirectoryPath { get; set; } = string.Empty;
 
@@ -242,6 +244,7 @@ public sealed class GameInstance : ObservableObject
 			Loader = Loader,
 			LoaderVersion = LoaderVersion,
 			OrbitClientEnabled = OrbitClientEnabled,
+			OrbitConnectEnabled = OrbitConnectEnabled,
 			LaunchVersionId = LaunchVersionId,
 			MinimumRamMb = MinimumRamMb,
 			MaximumRamMb = MaximumRamMb,

@@ -46,7 +46,7 @@ public sealed class ModrinthService
 			{
 				if (item2.Value.TryGetProperty("project_id", out var value) && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString()))
 				{
-					projectsByHash[item2.Name] = value.GetString();
+					projectsByHash[item2.Name] = value.GetString() ?? throw new InvalidDataException("Modrinth вернул пустой ID проекта.");
 				}
 			}
 		}
@@ -405,11 +405,10 @@ public sealed class ModrinthService
 		Directory.CreateDirectory(destinationDirectory);
 		if (project.ProjectType == "mod")
 		{
-			HashSet<string> visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			HashSet<string> installed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			bool flag = ((dependencyDownloadMode == "all" || dependencyDownloadMode == "none") ? true : false);
 			string mode = (flag ? dependencyDownloadMode : "required");
-			string destinationPath = await InstallModProjectAsync(project.ProjectId, instance, text, mode, visited, installed, progress, cancellationToken, selectedVersionId);
+			string destinationPath = await InstallModProjectAsync(project.ProjectId, instance, text, mode, installed, progress, cancellationToken, selectedVersionId);
 			int num = Math.Max(0, installed.Count - 1);
 			return new ModDownloadResult(destinationPath, string.Concat(str3: (num == 0) ? string.Empty : ((mode == "all") ? $" Зависимостей установлено: {num}." : $" Обязательных зависимостей установлено: {num}."), str0: "Мод установлен в сборку «", str1: instance.Name, str2: "»."), InstalledDirectly: true);
 		}
@@ -434,59 +433,96 @@ public sealed class ModrinthService
 		};
 	}
 
-	private async Task<string> InstallModProjectAsync(string projectId, GameInstance instance, string loader, string dependencyDownloadMode, HashSet<string> visited, HashSet<string> installed, IProgress<double>? progress, CancellationToken cancellationToken, string? selectedVersionId = null)
-	{
-		if (!visited.Add(projectId))
-		{
-			return string.Empty;
-		}
-		bool completed = false;
-		try
-		{
-			JsonDocument jsonDocument = ((selectedVersionId != null) ? (await GetJsonAsync(_apiBase + "/version/" + Uri.EscapeDataString(selectedVersionId), cancellationToken)) : (await GetVersionsAsync(projectId, instance.GameVersion, loader, cancellationToken)));
-			using JsonDocument versionsDocument = jsonDocument;
-			if (selectedVersionId == null && versionsDocument.RootElement.GetArrayLength() == 0)
-			{
-				throw new InvalidOperationException("У мода или одной из его зависимостей нет совместимой версии для выбранной сборки.");
-			}
-			JsonElement version = ((selectedVersionId == null) ? versionsDocument.RootElement[0] : versionsDocument.RootElement);
-			if (dependencyDownloadMode != "none" && version.TryGetProperty("dependencies", out var value))
-			{
-				foreach (JsonElement item in value.EnumerateArray())
-				{
-					JsonElement value2;
-					string dependencyType = (item.TryGetProperty("dependency_type", out value2) ? (value2.GetString() ?? string.Empty) : string.Empty);
-					if (!string.Equals(dependencyType, "required", StringComparison.OrdinalIgnoreCase) && (!(dependencyDownloadMode == "all") || !string.Equals(dependencyType, "optional", StringComparison.OrdinalIgnoreCase)))
-					{
-						continue;
-					}
-					string text = await GetDependencyProjectIdAsync(item, cancellationToken);
-					if (!string.IsNullOrWhiteSpace(text))
-					{
-						try
-						{
-							await InstallModProjectAsync(text, instance, loader, dependencyDownloadMode, visited, installed, null, cancellationToken);
-						}
-						catch (Exception ex) when (!(ex is OperationCanceledException) && string.Equals(dependencyType, "optional", StringComparison.OrdinalIgnoreCase))
-						{
-						}
-					}
-				}
-			}
-			Directory.CreateDirectory(instance.ModsPath);
-			string result = await DownloadPrimaryFileAsync(version, instance.ModsPath, projectId, progress, cancellationToken);
-			installed.Add(projectId);
-			completed = true;
-			return result;
-		}
-		finally
-		{
-			if (!completed)
-			{
-				visited.Remove(projectId);
-			}
-		}
-	}
+	private async Task<string> InstallModProjectAsync(string projectId, GameInstance instance, string loader, string dependencyDownloadMode, HashSet<string> installed, IProgress<double>? progress, CancellationToken cancellationToken, string? selectedVersionId = null)
+    {
+        var plan = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        var pinned = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var resolving = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        async Task Resolve(string id, string? versionId)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (versionId is not null && pinned.TryGetValue(id, out var required) && required != versionId)
+                throw new InvalidDataException("Моды требуют разные версии одной зависимости: " + id);
+            if (versionId is not null) pinned[id] = versionId;
+            if (plan.TryGetValue(id, out var previous) && (versionId is null || previous.GetProperty("id").GetString() == versionId)) return;
+            if (!resolving.Add(id))
+            {
+                if (versionId is not null && plan.TryGetValue(id, out previous) && previous.GetProperty("id").GetString() != versionId)
+                    throw new InvalidDataException("Обнаружен конфликт циклических зависимостей: " + id);
+                return;
+            }
+            try
+            {
+                using var document = versionId is null ? await GetVersionsAsync(id, instance.GameVersion, loader, cancellationToken)
+                    : await GetJsonAsync(_apiBase + "/version/" + Uri.EscapeDataString(versionId), cancellationToken);
+                if (versionId is null && document.RootElement.GetArrayLength() == 0)
+                    throw new InvalidOperationException("У мода или зависимости нет совместимой версии: " + id);
+                var version = (versionId is null ? document.RootElement[0] : document.RootElement).Clone();
+                if (version.TryGetProperty("project_id", out var owner) && owner.GetString() != id)
+                    throw new InvalidDataException("Версия зависимости принадлежит другому проекту: " + id);
+                if ((version.TryGetProperty("game_versions", out var games) && !games.EnumerateArray().Any(g => g.GetString() == instance.GameVersion))
+                    || (version.TryGetProperty("loaders", out var loaders) && !loaders.EnumerateArray().Any(l => string.Equals(l.GetString(), loader, StringComparison.OrdinalIgnoreCase))))
+                    throw new InvalidDataException("Требуемый выпуск мода несовместим со сборкой: " + id);
+                plan[id] = version;
+                if (dependencyDownloadMode == "none" || !version.TryGetProperty("dependencies", out var dependencies)) return;
+                foreach (var dependency in dependencies.EnumerateArray())
+                {
+                    var type = dependency.TryGetProperty("dependency_type", out var kind) ? kind.GetString() : "";
+                    if (type != "required" && !(type == "optional" && dependencyDownloadMode == "all")) continue;
+                    // Optional failure must not leave a partial subtree in the installation plan.
+                    var previousPlan = new Dictionary<string, JsonElement>(plan, StringComparer.OrdinalIgnoreCase);
+                    var previousPins = new Dictionary<string, string>(pinned, StringComparer.OrdinalIgnoreCase);
+                    try
+                    {
+                        var dependencyId = await GetDependencyProjectIdAsync(dependency, cancellationToken);
+                        if (dependencyId.Length == 0) throw new InvalidDataException("Modrinth не вернул ID зависимости проекта " + id);
+                        var pin = dependency.TryGetProperty("version_id", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+                        await Resolve(dependencyId, pin);
+                    }
+                    catch (Exception ex) when (type == "optional" && ex is not OperationCanceledException)
+                    {
+                        plan = previousPlan; pinned = previousPins;
+                    }
+                }
+            }
+            finally { resolving.Remove(id); }
+        }
+        await Resolve(projectId, selectedVersionId);
+        string DependencyId(JsonElement dependency)
+        {
+            if (dependency.TryGetProperty("project_id", out var id) && id.ValueKind == JsonValueKind.String) return id.GetString() ?? "";
+            if (dependency.TryGetProperty("version_id", out var version) && version.ValueKind == JsonValueKind.String)
+                return plan.FirstOrDefault(entry => entry.Value.GetProperty("id").GetString() == version.GetString()).Key ?? "";
+            return "";
+        }
+        var reachable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var mandatory = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Visit(string id, bool required)
+        {
+            if (!plan.TryGetValue(id, out var version)) return;
+            var first = reachable.Add(id); var promoted = required && mandatory.Add(id);
+            if ((!first && !promoted) || dependencyDownloadMode == "none" || !version.TryGetProperty("dependencies", out var dependencies)) return;
+            foreach (var dependency in dependencies.EnumerateArray())
+            {
+                var type = dependency.GetProperty("dependency_type").GetString();
+                if (type == "required" || (type == "optional" && dependencyDownloadMode == "all")) Visit(DependencyId(dependency), required && type == "required");
+            }
+        }
+        Visit(projectId, true);
+        var requests = plan.Where(entry => reachable.Contains(entry.Key)).Select(entry => new CatalogModInstaller.Request(entry.Key, directory =>
+            DownloadPrimaryFileAsync(entry.Value, directory, entry.Key, entry.Key == projectId ? progress : null, cancellationToken), mandatory.Contains(entry.Key),
+            dependencyDownloadMode != "none" && entry.Value.TryGetProperty("dependencies", out var dependencies)
+                ? dependencies.EnumerateArray().Where(dep => dep.GetProperty("dependency_type").GetString() == "required").Select(DependencyId).Where(id => id.Length > 0).ToArray() : [],
+            dependencyDownloadMode == "all" && entry.Value.TryGetProperty("dependencies", out var optional)
+                ? optional.EnumerateArray().Where(dep => dep.GetProperty("dependency_type").GetString() == "optional").Select(DependencyId).Where(id => id.Length > 0).ToArray() : [],
+            entry.Value.TryGetProperty("dependencies", out var conflicts)
+                ? conflicts.EnumerateArray().Where(dep => dep.GetProperty("dependency_type").GetString() == "incompatible"
+                    && (!dep.TryGetProperty("version_id", out var pin) || pin.ValueKind != JsonValueKind.String))
+                    .Select(DependencyId).Where(id => id.Length > 0).ToArray() : [])).ToArray();
+        var results = await CatalogModInstaller.InstallAsync(instance, "modrinth", requests, cancellationToken);
+        installed.UnionWith(results.Keys);
+        return results[projectId];
+    }
 
 	private async Task<JsonDocument> GetVersionsAsync(string projectId, string gameVersion, string loader, CancellationToken cancellationToken)
 	{
@@ -577,7 +613,7 @@ public sealed class ModrinthService
 		{
 			var (projectId, _, _) = tuple2;
 			string title;
-			if (!titles.TryGetValue(tuple2.ProjectId, out string value5))
+			if (!titles.TryGetValue(tuple2.ProjectId, out var value5))
 			{
 				if (tuple2.Title.Length <= 0)
 				{
@@ -606,7 +642,7 @@ public sealed class ModrinthService
 		{
 			return string.Empty;
 		}
-		using JsonDocument jsonDocument = await GetJsonAsync(_apiBase + "/version/" + Uri.EscapeDataString(value2.GetString()), cancellationToken);
+		using JsonDocument jsonDocument = await GetJsonAsync(_apiBase + "/version/" + Uri.EscapeDataString(value2.GetString() ?? ""), cancellationToken);
 		JsonElement value3;
 		return jsonDocument.RootElement.TryGetProperty("project_id", out value3) ? (value3.GetString() ?? string.Empty) : string.Empty;
 	}

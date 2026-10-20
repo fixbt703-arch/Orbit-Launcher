@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using OrbitLauncher.Utilities;
 using System.Text.Json;
 using System.Windows.Media.Imaging;
 
@@ -76,6 +77,7 @@ public sealed class MinecraftSkinService
 
     public static void ValidateSkin(byte[] pngBytes)
     {
+        if (pngBytes.Length > 196608) throw new InvalidOperationException(LocalizationService.Translate("PNG должен быть меньше 192 КБ."));
         if (pngBytes.Length < 24 || pngBytes[0] != 0x89 || pngBytes[1] != 0x50 || pngBytes[2] != 0x4E || pngBytes[3] != 0x47)
             throw new InvalidOperationException("Выберите изображение скина в формате PNG.");
 
@@ -149,11 +151,11 @@ public sealed class MinecraftSkinService
         }
 
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            throw new InvalidOperationException("Сессия Microsoft истекла. Выйдите из аккаунта и войдите снова.");
+            throw new InvalidOperationException(LocalizationService.Translate("Сессия Microsoft истекла. Выйдите из аккаунта и войдите снова."));
         if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-            throw new InvalidOperationException("Аккаунт не имеет доступа к Minecraft: Java Edition или смене скина.");
+            throw new InvalidOperationException(LocalizationService.Translate("Аккаунт не имеет доступа к Minecraft: Java Edition или смене скина."));
         throw new InvalidOperationException(string.IsNullOrWhiteSpace(message)
-            ? $"Minecraft Services вернул ошибку {(int)response.StatusCode}."
+            ? (LocalizationService.IsEnglish ? $"Minecraft Services returned error {(int)response.StatusCode}." : $"Minecraft Services вернул ошибку {(int)response.StatusCode}.")
             : message);
     }
 }

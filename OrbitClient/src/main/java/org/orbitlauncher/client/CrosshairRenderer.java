@@ -41,6 +41,7 @@ public final class CrosshairRenderer {
         int c=alpha|(s.crosshairColorMode==2?0xFFFFFF:rgb&0xFFFFFF);
         for(var a:mask.body)g.fill(pipeline,a.x,a.y,a.end,a.y+1,c);
         g.pose().popMatrix();
+        if(previewTarget>=0)CriticalIndicator.preview(g,x,y,s);
     }
     static boolean targetAllowed(Entity target,ClientConfig.State s) {
         if(target instanceof Player)return s.targetPlayers;

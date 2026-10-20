@@ -20,7 +20,7 @@ public final class ClientConfig {
         public double x, y;
         public float scale=1, opacity=.72f;
         public int color=0;
-        public boolean customPosition, background=true, showTitle=true, shadow;
+        public boolean customPosition, background=true, showTitle=true;
         public boolean hudBorder=true, accentBar=true, accentTitle=true;
         public int hudStyle, panelWidth, rowSpacing;
         public int backgroundColor=0x171E2E, textColor=0xF4F6FF;
@@ -35,6 +35,8 @@ public final class ClientConfig {
         public boolean crosshairDynamic, crosshairThirdPerson, crosshairHideMenus=true;
         public int crosshairMode=0, crosshairPreset=0, crosshairColorMode=0, crosshairScale=0;
         public boolean crosshairChroma;
+        public boolean criticalIndicator=true,criticalTargetOnly,criticalHighlight=true;
+        public int criticalScale=75,criticalOffset=9;
         public boolean separateFriendlyColor;
         public boolean targetPlayers=true, targetHostile=true, targetPassive=true, targetOther;
         public int enemyColor=0xFF5868, friendlyColor=0x5EE2A0;
@@ -94,6 +96,7 @@ public final class ClientConfig {
         }
         for (Module module:Module.values()) {
             State s=config.state(module);
+            s.criticalScale=Math.clamp(s.criticalScale,50,100);s.criticalOffset=Math.clamp(s.criticalOffset,0,24);
             if(config.layoutVersion<3){
                 if(s.backgroundColor==0x101927)s.backgroundColor=0x171E2E;
                 if(s.textColor==0xF1F5FA)s.textColor=0xF4F6FF;
@@ -152,6 +155,14 @@ public final class ClientConfig {
             var modules=tree.getAsJsonObject().getAsJsonObject("modules");
             // Remove the retired entry before Gson reads the EnumMap, preserving every other setting.
             if(modules!=null)modules.remove("HP_INDICATOR");
+            if(modules!=null&&modules.has("CROSSHAIR")&&modules.get("CROSSHAIR").isJsonObject()){
+                var crosshair=modules.getAsJsonObject("CROSSHAIR");
+                if(crosshair.has("criticalWidth")&&!crosshair.has("criticalScale")){
+                    crosshair.addProperty("criticalScale",75);
+                    if(crosshair.has("criticalOffset")&&crosshair.get("criticalOffset").getAsInt()==18)crosshair.addProperty("criticalOffset",9);
+                }
+            }
+
             if(modules!=null && modules.has("COOL_ANIM")) {
                 var old=modules.remove("COOL_ANIM");
                 if(!modules.has("HOLD_MY_ITEMS")) modules.add("HOLD_MY_ITEMS",old);

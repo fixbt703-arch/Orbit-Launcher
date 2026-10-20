@@ -81,9 +81,9 @@ public partial class CreateInstanceDialog : Window
 		catch
 		{
 			if (_closed) return;
-			_versions = new string[12]
+			_versions = new string[]
 			{
-				"1.21.8", "1.21.7", "1.21.6", "1.21.5", "1.21.4", "1.21.1", "1.20.6", "1.20.4", "1.20.1", "1.19.4",
+				"26.2", "26.1.2", "1.21.8", "1.21.7", "1.21.6", "1.21.5", "1.21.4", "1.21.1", "1.20.6", "1.20.4", "1.20.1", "1.19.4",
 				"1.18.2", "1.16.5"
 			}.Select((string id) => new MinecraftVersionInfo
 			{
@@ -140,7 +140,7 @@ public partial class CreateInstanceDialog : Window
 				return;
 			}
 			VersionSearchBox.Text = string.Empty;
-			MinecraftVersionInfo minecraftVersionInfo = _versions.FirstOrDefault((MinecraftVersionInfo version) => version.Id == "26.2");
+			MinecraftVersionInfo? minecraftVersionInfo = _versions.FirstOrDefault((MinecraftVersionInfo version) => version.Id == "26.2");
 			if (minecraftVersionInfo == null)
 			{
 				OrbitClientCheck.IsChecked = false;
@@ -153,8 +153,8 @@ public partial class CreateInstanceDialog : Window
 			await RefreshLoaderVersionsAsync();
 			if (_closed) return;
 			if (OrbitClientCheck.IsChecked != valueOrDefault) { ApplyOrbitClientLock(OrbitClientCheck.IsChecked == true); return; }
-			Version result;
-			LoaderVersionInfo loaderVersionInfo = LoaderVersions.FirstOrDefault((LoaderVersionInfo version) => Version.TryParse(version.Id, out result) && result >= new Version(0, 19, 3));
+			Version? result;
+			LoaderVersionInfo? loaderVersionInfo = LoaderVersions.FirstOrDefault((LoaderVersionInfo version) => Version.TryParse(version.Id, out result) && result >= new Version(0, 19, 3));
 			if (loaderVersionInfo == null)
 			{
 				OrbitClientCheck.IsChecked = false;
@@ -231,7 +231,7 @@ public partial class CreateInstanceDialog : Window
 	private void ApplyVersionFilter()
 	{
 		string query = VersionSearchBox.Text.Trim();
-		string selectedId = (VersionList.SelectedItem as MinecraftVersionInfo)?.Id;
+		string? selectedId = (VersionList.SelectedItem as MinecraftVersionInfo)?.Id;
 		VisibleVersions.Clear();
 		foreach (MinecraftVersionInfo item in _versions.Where((MinecraftVersionInfo version) => string.IsNullOrWhiteSpace(query) || version.Id.Contains(query, StringComparison.OrdinalIgnoreCase)))
 		{
@@ -289,7 +289,7 @@ public partial class CreateInstanceDialog : Window
 			LocalizationService.Show(this, "Orbit Client поддерживает только Minecraft 26.2 + Fabric.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
 			return;
 		}
-		if (OrbitClientCheck.IsChecked == true && (!Version.TryParse(text3, out Version result) || result < new Version(0, 19, 3)))
+		if (OrbitClientCheck.IsChecked == true && (!Version.TryParse(text3, out var result) || result < new Version(0, 19, 3)))
 		{
 			LocalizationService.Show(this, "Orbit Client требует Fabric Loader 0.19.3 или новее.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
 			return;
@@ -306,6 +306,7 @@ public partial class CreateInstanceDialog : Window
 			Loader = selectedLoader,
 			LoaderVersion = text3,
 			OrbitClientEnabled = (OrbitClientCheck.IsChecked == true),
+			OrbitConnectEnabled = (OrbitConnectCheck.IsChecked == true),
 			MinimumRamMb = result2,
 			MaximumRamMb = result3
 		};

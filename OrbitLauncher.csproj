@@ -1,9 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><Version>1.2.1</Version><OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework><RuntimeIdentifier>win-x64</RuntimeIdentifier><SelfContained>true</SelfContained><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings><ApplicationIcon>app.ico</ApplicationIcon><ApplicationManifest>app.manifest</ApplicationManifest><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <PropertyGroup><Version>1.5.5</Version><OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework><RuntimeIdentifier>win-x64</RuntimeIdentifier><SelfContained>true</SelfContained><UseWPF>true</UseWPF><Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings><ApplicationIcon>app.ico</ApplicationIcon><ApplicationManifest>app.manifest</ApplicationManifest><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
   <ItemGroup><Compile Include="**/*.cs" Exclude="bin/**;obj/**;Tests/**;OrbitClient/**" /></ItemGroup>
   <ItemGroup><Page Remove="Tests/**;OrbitClient/**" /><Resource Include="Assets/**/*.png;Assets/**/*.jpg;Assets/**/*.gif" /></ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Assets/OrbitConnect/nodes.json" LogicalName="OrbitLauncher.Connect.Nodes" />
+    <EmbeddedResource Include="Assets/OrbitConnect/orbit-connect-agent.jar" LogicalName="OrbitLauncher.Connect.Agent" />
+    <EmbeddedResource Include="Assets/OrbitConnect/*.txt" LogicalName="OrbitLauncher.Connect.Legal.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Assets/OrbitConnect/components.json" LogicalName="OrbitLauncher.Connect.Components" />
     <EmbeddedResource Include="Assets/OrbitClient/orbit-client-26.2.jar" LogicalName="OrbitLauncher.OrbitClient.Jar" />
+    <EmbeddedResource Include="Assets/SkinBridge/orbit-skin-bridge.jar" LogicalName="OrbitLauncher.SkinBridge.Jar" />
     <EmbeddedResource Include="Assets/OrbitClient/components.json" LogicalName="OrbitLauncher.OrbitClient.Components" />
     <EmbeddedResource Include="Assets/Icons/TABLER-LICENSE.txt" LogicalName="OrbitLauncher.TablerIcons.License" />
   </ItemGroup>

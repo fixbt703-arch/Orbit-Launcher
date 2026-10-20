@@ -35,10 +35,8 @@ public sealed class LoaderVersionService
 
     private async Task<IReadOnlyList<LoaderVersionInfo>> GetFabricVersionsAsync(string gameVersion, CancellationToken cancellationToken)
     {
-        using var response = await _httpClient.GetAsync($"{_settings.FabricMetaApi.TrimEnd('/')}/versions/loader/{Uri.EscapeDataString(gameVersion)}", cancellationToken);
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        using var document = JsonDocument.Parse(await LauncherNetwork.GetMetadataAsync(_httpClient,
+            $"{_settings.FabricMetaApi.TrimEnd('/')}/versions/loader/{Uri.EscapeDataString(gameVersion)}", cancellationToken));
         return document.RootElement.EnumerateArray()
             .Select(item => item.GetProperty("loader"))
             .Select(loader => new LoaderVersionInfo
@@ -52,10 +50,8 @@ public sealed class LoaderVersionService
 
     private async Task<IReadOnlyList<LoaderVersionInfo>> GetQuiltVersionsAsync(string gameVersion, CancellationToken cancellationToken)
     {
-        using var response = await _httpClient.GetAsync($"{_settings.QuiltMetaApi.TrimEnd('/')}/versions/loader/{Uri.EscapeDataString(gameVersion)}", cancellationToken);
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        using var document = JsonDocument.Parse(await LauncherNetwork.GetMetadataAsync(_httpClient,
+            $"{_settings.QuiltMetaApi.TrimEnd('/')}/versions/loader/{Uri.EscapeDataString(gameVersion)}", cancellationToken));
         return document.RootElement.EnumerateArray()
             .Select(item => item.GetProperty("loader"))
             .Select(loader => new LoaderVersionInfo
@@ -96,9 +92,7 @@ public sealed class LoaderVersionService
 
     private async Task<IReadOnlyList<string>> GetMavenVersionsAsync(string url, CancellationToken cancellationToken)
     {
-        using var response = await _httpClient.GetAsync(url, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var stream = new MemoryStream(await LauncherNetwork.GetMetadataAsync(_httpClient, url, cancellationToken), writable: false);
         var document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
         return document.Descendants("version")
             .Select(element => element.Value.Trim())

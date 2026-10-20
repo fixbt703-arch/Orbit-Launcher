@@ -26,6 +26,6 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Orbit Client build failed.' }
     $destination = Join-Path $PSScriptRoot '..\Assets\OrbitClient'
     New-Item -ItemType Directory -Force -Path $destination | Out-Null
-    Copy-Item -LiteralPath 'build\libs\orbit-client-0.18.4.jar' -Destination (Join-Path $destination 'orbit-client-26.2.jar') -Force
+    Copy-Item -LiteralPath 'build\libs\orbit-client-0.18.7.jar' -Destination (Join-Path $destination 'orbit-client-26.2.jar') -Force
     Write-Host 'Orbit Client built and copied into launcher assets.'
 } finally { Pop-Location }

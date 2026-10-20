@@ -1,0 +1,31 @@
+Orbit Connect uses EasyTier and Terracotta as separate, unmodified applications.
+Native applications are downloaded directly from their upstream release pages on first use.
+No EasyTier, Terracotta, Npcap/Packet.dll or Microsoft runtime binary is embedded in OrbitLauncher.exe.
+Network drivers are not installed. EasyTier runs with no_tun=true.
+
+EasyTier 2.6.4 — Copyright EasyTier contributors, LGPL-3.0.
+Project: https://github.com/EasyTier/EasyTier
+Source for the exact release: https://github.com/EasyTier/EasyTier/tree/v2.6.4
+Source archive: https://github.com/EasyTier/EasyTier/archive/refs/tags/v2.6.4.tar.gz
+License: LICENSE-EasyTier-LGPL-3.0.txt and LICENSE-GPL-3.0.txt.
+
+Terracotta 0.4.2 — Copyright burningtnt and Terracotta contributors, AGPL-3.0-or-later.
+Project/source: https://github.com/burningtnt/Terracotta/tree/v0.4.2
+Source archive: https://github.com/burningtnt/Terracotta/archive/refs/tags/v0.4.2.tar.gz
+License: LICENSE-Terracotta-AGPL-3.0.txt.
+The upstream README grants an exception for aggregation of unmodified executables
+without static/dynamic linking, and IPC with the unmodified application when its
+copyright is prominently identified in the calling application's user interface.
+Exact upstream statement: https://github.com/burningtnt/Terracotta/blob/v0.4.2/README.md#许可
+Orbit uses localhost HTTP IPC and displays Terracotta attribution in the Connect panel.
+Terracotta's embedded EasyTier and other native dependencies retain their upstream terms.
+
+Packet.dll is an upstream EasyTier runtime dependency identified as Npcap 1.79.
+It is obtained from upstream, never installed as a driver or redistributed inside Orbit.
+Npcap license information: https://npcap.com/oem/redist.html
+Use/replacement of upstream native applications is subject to their own terms.
+
+Orbit's Java adapter source is in OrbitConnect/src, under the launcher's MIT license.
+It includes relocated ASM 9.11 (BSD-3-Clause), copyright ASM contributors.
+ASM notices are included in the agent JAR and LICENSE-ASM.txt.
+No warranty is provided for third-party software; see each full license.

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Window Style="{StaticResource {x:Type Window}}" x:Class="OrbitLauncher.Dialogs.EditInstanceDialog" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Параметры сборки" Width="620" Height="650" MinHeight="610" ResizeMode="CanResize" WindowStyle="None" WindowStartupLocation="CenterOwner" Background="#00FFFFFF" xmlns:dialogs="clr-namespace:OrbitLauncher.Dialogs;assembly=OrbitLauncher">
   <Border Style="{StaticResource WindowFrame}">
     <Grid>
@@ -61,6 +61,10 @@
               <TextBlock Text="Orbit Client" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryLightBrush}" />
               <TextBlock Text="PvP HUD, меню на Right Shift и оптимизация" Style="{StaticResource CaptionText}" Margin="0,3,0,0" />
             </StackPanel>
+          </CheckBox>
+          <CheckBox Name="OrbitConnectCheck" Margin="0,16,0,0">
+            <StackPanel><TextBlock Text="Orbit Connect" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryLightBrush}"/>
+              <TextBlock Text="Игра с друзьями в своём мире · без аренды сервера" Style="{StaticResource CaptionText}" TextWrapping="Wrap" Margin="0,3,0,0"/></StackPanel>
           </CheckBox>
           <Separator Margin="0,24" />
           <TextBlock Text="Производительность" Style="{StaticResource SectionTitle}" />

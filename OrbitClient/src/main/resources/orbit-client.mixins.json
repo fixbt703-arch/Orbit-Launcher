@@ -14,11 +14,17 @@
     "PingMixin",
     "ClientChunkCacheMixin",
     "ClientPacketListenerMixin",
+    "RefillUseMixin",
+    "ClientLevelPredictionAccessor",
     "OptionsMixin",
     "GlintTextureMixin",
     "HitboxMixin",
     "VanillaHitboxMixin",
-    "EnchantmentGlowMixin"
+    "EnchantmentGlowMixin",
+    "CriticalAttackAccessor",
+    "UiTextShadowMixin",
+    "RefillHandAccessor",
+    "MinecraftAttackAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

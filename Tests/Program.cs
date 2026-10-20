@@ -10,6 +10,91 @@ using OrbitLauncher.Services;
 using SkiaSharp;
 
 var json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
+if (args.Length == 1 && args[0] == "--final-neoforge") { await FinalNeoForgeRegression.RunAsync(); return; }
+if (args.Length == 1 && args[0] == "--final-datapack") { await FinalDatapackRegression.RunAsync(); return; }
+if (args.Length == 1 && args[0] == "--connect-pid-fixture") { await Task.Delay(2500); return; }
+if (args.Length == 2 && args[0] == "--connect-published-smoke") { await ConnectPublishedSmoke.RunAsync(args[1]); return; }
+if (args.Length == 3 && args[0] == "--connect-game-smoke") { await ConnectGameSmoke.RunAsync(args[1], args[2]); return; }
+if (args.Length == 5 && args[0] == "-p" && args[2] == "-o" && args[4] == "peer")
+{
+    await File.WriteAllTextAsync(Path.Combine(AppContext.BaseDirectory, "connect-rpc-" + args[1].Split(':')[1] + ".ready"), "ready");
+    await Task.Delay(1000); Console.WriteLine("[]"); return;
+}
+if (args.Length == 1 && args[0] == "--connect-monitor-race-smoke") { await ConnectIntegrationSmoke.MonitorRaceAsync(); return; }
+if (args.Length == 2 && args[0] == "--connect-session-smoke") { await ConnectIntegrationSmoke.SessionAsync(args[1]); return; }
+if (args.Length == 1 && args[0] == "--connect-worker-smoke") { await ConnectIntegrationSmoke.WorkerAsync(); return; }
+if (args.Length == 2 && args[0] == "--connect-terracotta-smoke") { await ConnectIntegrationSmoke.TerracottaAsync(args[1]); return; }
+if (args.Length == 2 && args[0] == "--connect-ui-smoke") { ConnectUiSmoke.Run(args[1]); return; }
+if (args.Length >= 3 && args[0] == "--connect-native-probe") { await ConnectTransportSmoke.RunAsync(args[1], args[2], args.Length >= 4 ? int.Parse(args[3]) : 20, args.Length == 5 ? args[4] : null); return; }
+if (args.Length == 1 && args[0] == "--connect-regression") { await ConnectRegressionSmoke.RunAsync(); return; }
+if (args.Length == 2 && args[0] == "--connect-transport-smoke") { await ConnectProductionSmoke.RunAsync(args[1]); return; }
+if (args.Length == 2 && args[0] == "--probe-verity-install") { await ModInstallRegressionSmoke.ProbeVerityAsync(args[1]); return; }
+if (args.Length == 4 && args[0] == "--skin-launch-smoke") { await SkinLaunchSmoke.RunAsync(args[1], args[2], args[3]); return; }
+if (args.Length == 4 && args[0] == "--client-refill-smoke") { await SkinLaunchSmoke.RunAsync(args[1], args[2], args[3], refill: true); return; }
+if (args.Length == 2 && args[0] == "--ely-ui-smoke") { ElyUiSmoke.Run(args[1]); return; }
+if (args.Length == 2 && args[0] == "--ely-browser-smoke") { ElyUiSmoke.Run(args[1], browserProbe: true); return; }
+if (args.Length == 2 && args[0] == "--probe-ely")
+{
+    using var network = LauncherNetwork.CreateClient();
+    var agent = await ElyGameIntegration.EnsureAgentAsync(network, default, args[1]);
+    Console.WriteLine("PASS official authlib-injector download: SHA-256 verified, version " + ElyGameIntegration.AgentVersion);
+    using var skinsNetwork = LauncherNetwork.CreateClient(redirects: false);
+    var head = await new ElySkinService(skinsNetwork, Path.Combine(args[1], "heads")).RefreshHeadAsync("ErickSkrauch");
+    if (head?.Image.PixelWidth != 8 || !head.Image.IsFrozen) throw new Exception("Ely head unavailable");
+    Console.WriteLine("PASS official Ely.by public skin: 8x8 frozen head, separate cache; no account credentials used.");
+    return;
+}
+if (args.Length == 2 && args[0] == "--probe-minecraft-components")
+{
+    using var network = LauncherNetwork.CreateClient();
+    using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+    var parameters = CmlLib.Core.MinecraftLauncherParameters.CreateDefault(new CmlLib.Core.MinecraftPath(args[1]), network);
+    parameters.GameInstaller = new ReliableGameInstaller(network);
+    var launcher = new CmlLib.Core.MinecraftLauncher(parameters);
+    var files = (await launcher.ExtractFiles("26.2", deadline.Token)).ToArray();
+    var sample = files.First(file => file.Size > 1000 && file.Size < 512000 && file.Hash?.Length == 40 && file.Url?.StartsWith("https://", StringComparison.Ordinal) == true);
+    await launcher.GameInstaller.Install([sample], null, null, deadline.Token);
+    using var stream = File.OpenRead(sample.Path!);
+    if (!Convert.ToHexString(SHA1.HashData(stream)).Equals(sample.Hash, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Live component hash mismatch");
+    Console.WriteLine($"PASS live Minecraft 26.2 component: {sample.Name}, {sample.Size} bytes; official SHA-1 verified; game not started.");
+    return;
+}
+if (args.Length == 1 && args[0] == "--probe-network")
+{
+    using var network = LauncherNetwork.CreateClient();
+    foreach (var compatible in new[] { false, true })
+    foreach (var address in new[] { "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json", "https://meta.fabricmc.net/v2/versions/loader/26.2", "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml" })
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        using var request = new HttpRequestMessage(HttpMethod.Get, address);
+        request.Options.Set(LauncherNetwork.CompatibilityTransportKey, compatible);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        using var response = await network.SendAsync(request, deadline.Token);
+        response.EnsureSuccessStatusCode();
+        var contents = await response.Content.ReadAsByteArrayAsync(deadline.Token);
+        Console.WriteLine($"PASS live network: {new Uri(address).Host}; compatibility={compatible}; {contents.Length} bytes; {watch.ElapsedMilliseconds} ms");
+    }
+    return;
+}
+if (args.Length == 2 && args[0] == "--update-preview")
+{
+    UpdateWindowPreview.Run(args[1]);
+    return;
+}
+if (args.Length == 2 && args[0] == "--update-ui-smoke")
+{
+    UpdateWindowPreview.Run(args[1], verify: true);
+    return;
+}
+if (args.Length == 1 && args[0] == "--probe-updates")
+{
+    using var updateHttp = GitHubUpdateService.CreateHttpClient();
+    var updates = new GitHubUpdateService(updateHttp);
+    var published = await updates.CheckAsync(new Version(0, 0));
+    var available = await updates.CheckAsync(GitHubUpdateService.CurrentVersion);
+    Console.WriteLine($"PASS live GitHub release: {(published is null ? "none" : published.Tag + " / " + GitHubUpdateService.DisplayVersion(published.Version))}; current {GitHubUpdateService.DisplayVersion(GitHubUpdateService.CurrentVersion)}; newer available: {available is not null}");
+    return;
+}
 if (args.Length == 1 && args[0] == "--dialog-async-smoke")
 {
     DialogAsyncSmoke.Run();
@@ -148,6 +233,16 @@ var installer = new MrpackInstaller(http);
 try
 {
     passed += await ReleaseAuditSmoke.RunAsync(temp);
+    passed += await AuditRegressionSmoke.RunAsync(temp);
+    passed += await ModInstallRegressionSmoke.RunAsync(temp);
+    passed += await UpdateRegressionSmoke.RunAsync(temp);
+    passed += await NetworkRegressionSmoke.RunAsync(temp);
+    passed += await ElyRegressionSmoke.RunAsync(temp);
+    if (!args.Contains("--exclude-connect", StringComparer.Ordinal))
+        await Test("Orbit Connect invitations, installer integrity, instance flags, IPC and lifecycle", ConnectRegressionSmoke.RunAsync);
+    else Console.WriteLine("Orbit Connect excluded by request.");
+    await Test("NeoForge ignores unrelated unreadable or malformed profiles", FinalNeoForgeRegression.RunAsync);
+    await Test("data-pack picker retries temporarily locked ZIPs", FinalDatapackRegression.RunAsync);
     await Test("instance paths survive Windows code pages without changing display names", () =>
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -519,15 +614,14 @@ try
         using (var zip = ZipFile.Open(pack, ZipArchiveMode.Create))
         using (var writer = new StreamWriter(zip.CreateEntry("pack.mcmeta").Open()))
             writer.Write("{\"pack\":{\"pack_format\":107,\"description\":\"Test\"}}");
-        var picker = Path.Combine(Path.GetTempPath(), "mcworld-" + Guid.NewGuid().ToString("N"));
         using (var bridge = new DatapackWorldCreationBridge(instance.DirectoryPath))
         {
+            var picker = Path.Combine(bridge.TemporaryDirectory, "mcworld-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(picker);
             for (var attempt = 0; attempt < 40 && !File.Exists(Path.Combine(picker, "test-pack.zip")); attempt++)
                 await Task.Delay(100);
             Check(File.Exists(Path.Combine(picker, "test-pack.zip")), "new-world picker missing pack");
         }
-        Directory.Delete(picker, true);
     });
     await Test("Modrinth installs the selected release, not the latest", async () =>
     {

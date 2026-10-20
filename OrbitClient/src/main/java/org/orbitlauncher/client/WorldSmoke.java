@@ -13,6 +13,7 @@ final class WorldSmoke {
     private static long started;
     private static boolean ready;
     private static net.minecraft.core.BlockPos refillBase;
+    private static int refillRun;
     static boolean prepare(Minecraft mc) {
         if(ready)return true;
         if(started==0) {
@@ -56,48 +57,65 @@ final class WorldSmoke {
     static void verifyNewFeatures(Minecraft mc){NewFeatureSmoke.verify(mc);}
     static void prepareRefill(Minecraft mc){
         mc.gui.setScreen(null);OrbitClient.config.state(Module.AUTO_REFILL).enabled=true;mc.player.getInventory().setSelectedSlot(0);
-        refillBase=mc.player.blockPosition().offset(1,-1,0);
+        int[][] offsets={{1,0},{-1,0},{0,-1}};var offset=offsets[refillRun++%offsets.length];
+        refillBase=mc.player.blockPosition().offset(offset[0],-1,offset[1]);
         mc.getConnection().sendCommand("gamemode survival");
         mc.getConnection().sendCommand("fill "+(refillBase.getX()-3)+" "+refillBase.getY()+" "+(refillBase.getZ()-3)+" "+(refillBase.getX()+3)+" "+refillBase.getY()+" "+(refillBase.getZ()+3)+" minecraft:stone");
         mc.getConnection().sendCommand("setblock "+refillBase.getX()+" "+refillBase.getY()+" "+refillBase.getZ()+" minecraft:stone");
         mc.getConnection().sendCommand("setblock "+refillBase.getX()+" "+(refillBase.getY()+1)+" "+refillBase.getZ()+" minecraft:air");
+        mc.getConnection().sendCommand("setblock "+refillBase.getX()+" "+(refillBase.getY()+2)+" "+refillBase.getZ()+" minecraft:air");
         mc.getConnection().sendCommand("item replace entity @s hotbar.0 with minecraft:stone 1");
         mc.getConnection().sendCommand("item replace entity @s inventory.0 with minecraft:stone 32");
         mc.getConnection().sendCommand("item replace entity @s inventory.1 with minecraft:oak_planks 64");
     }
     static void consumeRefill(Minecraft mc){
         if(!mc.player.getInventory().getSelectedItem().is(Items.STONE))throw new IllegalStateException("Refill test stack was not installed");
+        var predictions=((org.orbitlauncher.client.mixin.ClientLevelPredictionAccessor)mc.level).orbit$predictions();
+        var original=new ItemStack(Items.STONE);
+        AutoRefill.recordUse(mc.player,net.minecraft.world.InteractionHand.MAIN_HAND);
+        try(var prediction=predictions.startPredicting()){
+            mc.player.getInventory().setItem(0,ItemStack.EMPTY);
+            AutoRefill.finishUse(mc.player,net.minecraft.world.InteractionHand.MAIN_HAND,net.minecraft.world.InteractionResult.FAIL);
+        }
+        if(mc.player.getInventory().getItem(9).getCount()!=32)throw new IllegalStateException("Failed placement moved a reserve stack");
+        mc.player.getInventory().setItem(0,original.copy());
         AutoRefill.recordUse(mc.player,net.minecraft.world.InteractionHand.MAIN_HAND);
         mc.player.getInventory().setItem(0,ItemStack.EMPTY);
-        for(int tick=0;tick<12;tick++){
-            AutoRefill.tick(mc);
-            if(!mc.player.getInventory().getItem(0).isEmpty()||mc.player.getInventory().getItem(9).getCount()!=32
-                ||mc.player.getInventory().getItem(10).getCount()!=64)throw new IllegalStateException("Refill changed inventory before server confirmed depletion");
-        }
-        OrbitClient.LOG.info("Stack Refill: delayed placement acknowledgement leaves all inventory stacks untouched");
-        var original=new ItemStack(Items.STONE);
-        AutoRefill.serverSlot(0,original);mc.player.getInventory().setItem(0,original.copy());AutoRefill.tick(mc);
-        if(mc.player.getInventory().getItem(9).getCount()!=32)throw new IllegalStateException("Rejected placement consumed a reserve stack");
-        AutoRefill.reset();
-        AutoRefill.recordUse(mc.player,net.minecraft.world.InteractionHand.MAIN_HAND);mc.player.getInventory().setItem(0,ItemStack.EMPTY);
-        for(int tick=0;tick<85;tick++)AutoRefill.tick(mc);
-        if(mc.player.getInventory().getItem(9).getCount()!=32)throw new IllegalStateException("Refill timeout changed inventory");
+        AutoRefill.finishUse(mc.player,net.minecraft.world.InteractionHand.MAIN_HAND,net.minecraft.world.InteractionResult.SUCCESS);
+        if(mc.player.getInventory().getItem(9).getCount()!=32)throw new IllegalStateException("A stale use without a prediction moved reserve items");
         mc.player.getInventory().setItem(0,original.copy());
-        AutoRefill.recordUse(mc.player,net.minecraft.world.InteractionHand.MAIN_HAND);mc.player.getInventory().setItem(0,ItemStack.EMPTY);
-        mc.gui.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(mc.player));AutoRefill.tick(mc);mc.gui.setScreen(null);
+        AutoRefill.recordUse(mc.player,net.minecraft.world.InteractionHand.MAIN_HAND);
+        try(var prediction=predictions.startPredicting()){
+            mc.player.getInventory().setItem(0,ItemStack.EMPTY);
+            mc.gui.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(mc.player));
+            AutoRefill.finishUse(mc.player,net.minecraft.world.InteractionHand.MAIN_HAND,net.minecraft.world.InteractionResult.SUCCESS);
+            mc.gui.setScreen(null);
+        }
         if(mc.player.getInventory().getItem(9).getCount()!=32)throw new IllegalStateException("Opening inventory did not cancel refill");
         mc.player.getInventory().setItem(0,original.copy());
-        OrbitClient.LOG.info("Stack Refill: rejected placement, missing acknowledgement timeout and opening inventory preserve reserve items");
-        var hit=new net.minecraft.world.phys.BlockHitResult(new net.minecraft.world.phys.Vec3(refillBase.getX()+.5,refillBase.getY()+1,refillBase.getZ()+.5),net.minecraft.core.Direction.UP,refillBase,false);
-        mc.gameMode.useItemOn(mc.player,net.minecraft.world.InteractionHand.MAIN_HAND,hit);
-        if(!mc.player.getInventory().getItem(0).isEmpty()||mc.player.getInventory().getItem(9).getCount()!=32)throw new IllegalStateException("Final block placement was not predicted without changing reserve items");
+        for(int i=0;i<2;i++){
+            var base=refillBase.above(i);
+            var hit=new net.minecraft.world.phys.BlockHitResult(new net.minecraft.world.phys.Vec3(base.getX()+.5,base.getY()+1,base.getZ()+.5),net.minecraft.core.Direction.UP,base,false);
+            var result=mc.gameMode.useItemOn(mc.player,net.minecraft.world.InteractionHand.MAIN_HAND,hit);
+            if(!result.consumesAction()||!mc.player.getInventory().getItem(0).is(Items.STONE)||mc.player.getInventory().getItem(0).getCount()!=32-i
+                ||!mc.player.getInventory().getItem(9).isEmpty())throw new IllegalStateException("Refill left an empty frame or failed consecutive placement: step="+i+", result="+result+", selected="+mc.player.getMainHandItem()+", source="+mc.player.getInventory().getItem(9)+", destination="+mc.level.getBlockState(base.above()));
+        }
+        OrbitClient.LOG.info("Stack Refill: immediate predicted swap and next placement completed without an empty hotbar frame");
     }
     static void finishRefill(Minecraft mc){
         var selected=mc.player.getInventory().getItem(0);
-        if(!selected.is(Items.STONE)||selected.getCount()!=32||!mc.player.getInventory().getItem(9).isEmpty()||!mc.player.getInventory().getItem(10).is(Items.OAK_PLANKS))throw new IllegalStateException("Refill did not synchronize the exact stack: selected="+selected+", source="+mc.player.getInventory().getItem(9)+", other="+mc.player.getInventory().getItem(10));
-        boolean server=mc.getSingleplayerServer().submit(()->{var player=mc.getSingleplayerServer().getPlayerList().getPlayers().getFirst();var stack=player.getInventory().getItem(0);return stack.is(Items.STONE)&&stack.getCount()==32&&player.getInventory().getItem(9).isEmpty();}).join();
-        boolean placed=mc.getSingleplayerServer().submit(()->mc.getSingleplayerServer().overworld().getBlockState(refillBase.above()).is(net.minecraft.world.level.block.Blocks.STONE)).join();
+        if(!selected.is(Items.STONE)||selected.getCount()!=31||!mc.player.getInventory().getItem(9).isEmpty()||!mc.player.getInventory().getItem(10).is(Items.OAK_PLANKS))throw new IllegalStateException("Refill did not synchronize the exact stack: selected="+selected+", source="+mc.player.getInventory().getItem(9)+", other="+mc.player.getInventory().getItem(10));
+        boolean server=mc.getSingleplayerServer().submit(()->{var player=mc.getSingleplayerServer().getPlayerList().getPlayers().getFirst();var stack=player.getInventory().getItem(0);return stack.is(Items.STONE)&&stack.getCount()==31&&player.getInventory().getItem(9).isEmpty();}).join();
+        boolean placed=mc.getSingleplayerServer().submit(()->mc.getSingleplayerServer().overworld().getBlockState(refillBase.above()).is(net.minecraft.world.level.block.Blocks.STONE)&&mc.getSingleplayerServer().overworld().getBlockState(refillBase.above(2)).is(net.minecraft.world.level.block.Blocks.STONE)).join();
         if(!server||!placed)throw new IllegalStateException("Refill or real block placement was only applied on the client");
+        try{
+            var predictions=((org.orbitlauncher.client.mixin.ClientLevelPredictionAccessor)mc.level).orbit$predictions();
+            var field=predictions.getClass().getDeclaredField("serverVerifiedStates");field.setAccessible(true);
+            if(!((java.util.Map<?,?>)field.get(predictions)).isEmpty())throw new IllegalStateException("Placement predictions were not acknowledged by the real server");
+        }catch(ReflectiveOperationException e){throw new AssertionError(e);}
+        for(int i=0;i<12;i++){AutoRefill.tick(mc);}
+        if(mc.player.getInventory().getItem(0).getCount()!=31||!mc.player.getInventory().getItem(9).isEmpty())
+            throw new IllegalStateException("Repeated ticks duplicated a refill transaction");
         OrbitClient.LOG.info("Stack Refill: exhausted stack swapped, exact block retained and server inventory synchronized");
         mc.getConnection().sendCommand("item replace entity @s hotbar.0 with minecraft:diamond_sword[minecraft:enchantment_glint_override=true]");
     }

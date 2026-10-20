@@ -53,7 +53,7 @@ public sealed class InstanceRepository
 			}
 			try
 			{
-				GameInstance instance;
+				GameInstance? instance;
 				instance = AtomicJsonFile.Read<GameInstance>(path);
 				if (instance != null)
 				{
@@ -181,13 +181,13 @@ public sealed class InstanceRepository
 		try
 		{
 			await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, temporary));
-			string definition = Directory.EnumerateFiles(temporary, "instance.json", SearchOption.AllDirectories).FirstOrDefault();
+			string? definition = Directory.EnumerateFiles(temporary, "instance.json", SearchOption.AllDirectories).FirstOrDefault();
 			GameInstance instance;
 			string contentRoot;
 			if (definition != null)
 			{
 				instance = AtomicJsonFile.Read<GameInstance>(definition) ?? throw new InvalidDataException("ZIP содержит пустое описание сборки.");
-				contentRoot = Path.GetDirectoryName(definition);
+				contentRoot = Path.GetDirectoryName(definition) ?? throw new InvalidDataException("ZIP содержит некорректное описание сборки.");
 			}
 			else
 			{

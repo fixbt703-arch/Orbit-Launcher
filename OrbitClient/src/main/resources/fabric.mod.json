@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "orbit_client",
-  "version": "0.18.4",
+  "version": "0.18.7",
   "name": "Orbit Client",
   "icon": "assets/orbit_client/textures/gui/sprites/ui/icons/logo.png",
   "description": "Configurable PvP HUD, extended chunk rendering and a space-inspired client menu for Orbit Launcher.",

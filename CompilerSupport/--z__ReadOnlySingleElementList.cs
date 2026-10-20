@@ -9,7 +9,7 @@ internal sealed class _003C_003Ez__ReadOnlySingleElementList<T> : IEnumerable, I
 	{
 		private readonly T _item;
 		private bool _moveNextCalled;
-		object IEnumerator.Current => _item;
+		object? IEnumerator.Current => _item;
 
 		T IEnumerator<T>.Current => _item;
 
@@ -124,12 +124,12 @@ internal sealed class _003C_003Ez__ReadOnlySingleElementList<T> : IEnumerable, I
 
 	bool IList.Contains(object? value)
 	{
-		return EqualityComparer<T>.Default.Equals(_item, (T)value);
+		return value is T item ? EqualityComparer<T>.Default.Equals(_item, item) : value is null && _item is null;
 	}
 
 	int IList.IndexOf(object? value)
 	{
-		if (!EqualityComparer<T>.Default.Equals(_item, (T)value))
+		if (!((IList)this).Contains(value))
 		{
 			return -1;
 		}

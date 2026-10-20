@@ -152,6 +152,7 @@
                             <ContextMenu>
                               <MenuItem Header="Запустить" Click="ContextLaunch_Click" />
                               <MenuItem Header="Параметры" Click="ContextEdit_Click" />
+                              <MenuItem Header="Orbit Connect" Click="ContextConnect_Click" />
                               <MenuItem Header="Изменить иконку" Click="ContextIcon_Click" />
                               <MenuItem Header="Переименовать" Click="ContextRename_Click" />
                               <MenuItem Header="Установить моды" Click="ContextMods_Click" />
@@ -159,6 +160,7 @@
                               <MenuItem Header="Создать копию" Click="ContextDuplicate_Click" />
                               <MenuItem Header="Экспортировать" Click="ContextExport_Click" />
                               <MenuItem Header="Открыть папку" Click="ContextFolder_Click" />
+                              <MenuItem Header="Журнал запуска" Click="ContextLaunchLog_Click" />
                               <Separator />
                               <MenuItem Header="Удалить" Foreground="{DynamicResource DangerBrush}" Click="ContextDelete_Click" />
                             </ContextMenu>
@@ -394,113 +396,103 @@
               </Grid>
             </Grid>
 <Grid Name="SkinsPage" Margin="28,24,28,20" Visibility="Collapsed">
-              <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-              </Grid.RowDefinitions>
-              <Grid>
-                <StackPanel>
-                  <TextBlock Text="Скины" Style="{StaticResource TitleText}" />
-                  <TextBlock Text="Библиотека скинов Minecraft: Java Edition" Style="{StaticResource MutedText}" Margin="0,3,0,0" />
-                </StackPanel>
-                <Button HorizontalAlignment="Right" VerticalAlignment="Center" Height="44" Style="{StaticResource PrimaryButton}" Padding="15,0" Click="ChooseSkinButton_Click">
-                  <Grid VerticalAlignment="Center">
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="Auto" />
-                      <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <ContentControl Content="" Style="{StaticResource SmoothActionIcon}" VerticalAlignment="Center" Width="14" Height="14" />
-                    <TextBlock Grid.Column="1" Text="Новый скин" VerticalAlignment="Center" Margin="8,0,0,1" />
-                  </Grid>
-                </Button>
-              </Grid>
-              <Grid Row="1" Margin="0,20,0,0">
-                <Border Name="SkinsSignInPanel" Style="{StaticResource CardBorder}" Visibility="Collapsed" MaxWidth="620" MaxHeight="240" HorizontalAlignment="Center" VerticalAlignment="Center">
-                  <StackPanel HorizontalAlignment="Center">
-                    <Border Width="58" Height="58" CornerRadius="10" Background="{DynamicResource ControlBrush}" HorizontalAlignment="Center">
-                      <ContentControl Content="" Style="{StaticResource SmoothActionIcon}" Foreground="{DynamicResource PrimaryLightBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Width="25" Height="25" />
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel Margin="0,0,16,0">
+    <TextBlock Text="Скины" Style="{StaticResource TitleText}"/>
+    <TextBlock x:Name="SkinPageSubtitle" Text="Выберите образ для своего аккаунта Minecraft" Style="{StaticResource MutedText}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+  </StackPanel><Button Grid.Column="1" Content="Настройки аккаунта" Style="{StaticResource QuietButton}" Click="AccountProfile_Click"/></Grid>
+  <Grid Grid.Row="1" Margin="0,20,0,0">
+    <controls:ElySkinsPanel x:Name="ElySkins" Visibility="Collapsed"/>
+    <Border Name="SkinsSignInPanel" Style="{StaticResource CardBorder}" Visibility="Collapsed" VerticalAlignment="Top" Padding="28">
+      <StackPanel>
+        <TextBlock Text="Где вы играете?" FontSize="22" FontWeight="SemiBold"/>
+        <TextBlock Text="Подключите аккаунт, к которому хотите применить скин." Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,24"/>
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <StackPanel>
+            <TextBlock Text="Microsoft" FontSize="17" FontWeight="SemiBold"/>
+            <TextBlock Text="Для владельцев Minecraft Java Edition. Сохранённые скины доступны в вашей библиотеке." Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,18"/>
+            <Button x:Name="SkinMicrosoftLoginButton" Content="Войти в Microsoft" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Click="MicrosoftLoginButton_Click"/>
+          </StackPanel>
+          <Border Grid.Column="1" Width="1" Background="{DynamicResource DividerBrush}" Margin="0,0,0,0"/>
+          <StackPanel Grid.Column="2">
+            <TextBlock Text="Ely.by" FontSize="17" FontWeight="SemiBold"/>
+            <TextBlock Text="Для аккаунта без лицензии. Используйте ник Ely.by и выбирайте скин на сайте." Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,18"/>
+            <Button Content="Подключить Ely.by" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Click="EnableUnlicensedAccount_Click"/>
+          </StackPanel>
+        </Grid>
+      </StackPanel>
+    </Border>
+    <Grid Name="SkinsContentPanel">
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <Border Style="{StaticResource CardBorder}" Padding="20,16">
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
+            <TextBlock x:Name="SkinAccountTitle" Text="Microsoft · Minecraft" FontWeight="SemiBold" FontSize="16" TextWrapping="Wrap"/>
+            <TextBlock Text="Скины Ely.by у других игроков" Style="{StaticResource MutedText}" Margin="0,5,0,0" TextWrapping="Wrap"/>
+            <TextBlock Text="Ваш скин Minecraft сохраняется. Изменение действует со следующего запуска игры." Style="{StaticResource CaptionText}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+          </StackPanel>
+          <CheckBox x:Name="LicensedElySkinsCheck" Grid.Column="1" Style="{StaticResource SwitchToggle}" VerticalAlignment="Center" AutomationProperties.Name="Скины Ely.by у других игроков" Checked="LicensedElySkins_Changed" Unchecked="LicensedElySkins_Changed"/>
+        </Grid>
+      </Border>
+      <Grid Grid.Row="1" Margin="0,24,0,16">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel Margin="0,0,16,0" VerticalAlignment="Center">
+          <TextBlock Text="Библиотека скинов" Style="{StaticResource SectionTitle}"/>
+          <TextBlock Name="SkinLibraryCountText" Text="Сохранённые скины" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
+        </StackPanel>
+        <Button x:Name="AddSkinButton" Grid.Column="1" Content="Добавить PNG" Style="{StaticResource PrimaryButton}" Click="ChooseSkinButton_Click"/>
+      </Grid>
+      <Border x:Name="SkinStatusPanel" Grid.Row="2" Style="{StaticResource CardBorder}" Padding="16,12" Margin="0,0,0,16" Visibility="Collapsed">
+        <StackPanel>
+          <ProgressBar x:Name="SkinOperationProgress" IsIndeterminate="True" Height="3" Margin="0,0,0,8" Visibility="Collapsed" AutomationProperties.Name="Применение скина"/>
+          <TextBlock x:Name="SkinOperationText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+          <Button x:Name="SkinRetryButton" Content="Повторить загрузку библиотеки" Style="{StaticResource QuietButton}" HorizontalAlignment="Left" Margin="0,8,0,0" Click="SkinRetry_Click" Visibility="Collapsed"/>
+        </StackPanel>
+      </Border>
+      <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid>
+          <ItemsControl x:Name="SkinLibraryItems" ItemsSource="{Binding SkinLibrary}">
+            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type models:SkinLibraryItem}">
+                <Border Loaded="LocalizedElement_Loaded" Width="188" Margin="0,0,16,16" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="12">
+                  <StackPanel>
+                    <Border Background="{DynamicResource InputBrush}" CornerRadius="7" Height="120" Padding="12">
+                      <Grid>
+                        <ContentControl Content="&#xEB4D;" Width="38" Height="38" Foreground="{DynamicResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <ContentControl.Style><Style TargetType="ContentControl" BasedOn="{StaticResource SmoothActionIcon}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Preview}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></ContentControl.Style>
+                        </ContentControl>
+                        <Image Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor" Source="{Binding Preview}" AutomationProperties.Name="{Binding Name}"/>
+                      </Grid>
                     </Border>
-                    <TextBlock Text="Войдите в Microsoft" FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,14,0,0" />
-                    <TextBlock Text="Управление официальным скином доступно для аккаунта с Minecraft: Java Edition." Style="{StaticResource MutedText}" TextAlignment="Center" MaxWidth="450" Margin="0,7,0,15" />
-                    <Button Content="Войти в Microsoft" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Center" Click="MicrosoftLoginButton_Click" />
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" Margin="0,12,0,0"/>
+                    <TextBlock Text="{Binding ModelText}" Style="{StaticResource CaptionText}" Margin="0,3,0,12"/>
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="36"/></Grid.ColumnDefinitions>
+                      <Button Content="Применить" Style="{StaticResource SecondaryButton}" Padding="10,8" Tag="{Binding}" Click="SkinLibraryItem_Click" AutomationProperties.HelpText="{Binding Name}"/>
+                      <Button Grid.Column="2" Style="{StaticResource IconButton}" Width="36" Height="36" ToolTip="Удалить из библиотеки" AutomationProperties.Name="Удалить из библиотеки" AutomationProperties.HelpText="{Binding Name}" Foreground="{DynamicResource DangerBrush}" Tag="{Binding}" Click="DeleteSkinLibraryItem_Click">
+                        <ContentControl Content="{StaticResource SmoothTrashGeometry}" Style="{StaticResource SmoothActionIcon}" Width="16" Height="16"/>
+                      </Button>
+                    </Grid>
                   </StackPanel>
                 </Border>
-                <Grid Name="SkinsContentPanel">
-                  <Grid>
-                    <Grid.RowDefinitions>
-                      <RowDefinition Height="Auto" />
-                      <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <Grid>
-                      <StackPanel>
-                        <TextBlock Text="Библиотека" Style="{StaticResource SectionTitle}" />
-                        <TextBlock Name="SkinLibraryCountText" Text="Сохранённые скины" Style="{StaticResource MutedText}" Margin="0,3,0,0" />
-                      </StackPanel>
-                    </Grid>
-                    <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                      <Grid>
-                        <ItemsControl ItemsSource="{Binding SkinLibrary}">
-                          <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                              <WrapPanel />
-                            </ItemsPanelTemplate>
-                          </ItemsControl.ItemsPanel>
-                          <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type models:SkinLibraryItem}">
-                              <Grid Width="180" Height="242" Margin="0,0,16,16">
-                                <Button ToolTip="Нажмите, чтобы применить" VerticalAlignment="Stretch" Padding="0" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Cursor="Hand" Tag="{Binding}" Click="SkinLibraryItem_Click">
-                                  <Control.Template>
-                                    <ControlTemplate TargetType="{x:Type Button}">
-                                      <Border Name="Card" utilities:InterfaceMotion.Fill="{TemplateBinding Control.Background}" utilities:InterfaceMotion.Stroke="{TemplateBinding Control.BorderBrush}" BorderThickness="{TemplateBinding Control.BorderThickness}" CornerRadius="10" Padding="10">
-                                        <ContentPresenter />
-                                      </Border>
-                                      <ControlTemplate.Triggers>
-                                        <Trigger Property="UIElement.IsMouseOver" Value="True">
-                                          <Setter TargetName="Card" Value="{DynamicResource PrimaryLightBrush}" Property="utilities:InterfaceMotion.Stroke" />
-                                          <Setter TargetName="Card" Property="utilities:InterfaceMotion.Fill" Value="{DynamicResource ControlBrush}" />
-                                        </Trigger>
-                                        <Trigger Property="ButtonBase.IsPressed" Value="True">
-                                          <Setter TargetName="Card" Property="utilities:InterfaceMotion.TargetOpacity" Value="0.78" />
-                                        </Trigger>
-                                      </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                  </Control.Template>
-                                  <Grid>
-                                    <Grid.RowDefinitions>
-                                      <RowDefinition Height="*" />
-                                      <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <Border Background="{DynamicResource InputBrush}" CornerRadius="9" Padding="8">
-                                      <Grid>
-  <ContentControl Content="&#xEB4D;" Width="38" Height="38" Foreground="{DynamicResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
-    <ContentControl.Style><Style TargetType="ContentControl" BasedOn="{StaticResource SmoothActionIcon}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding Preview}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></ContentControl.Style>
-  </ContentControl>
-  <Image Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor" Source="{Binding Preview}" /></Grid>
-                                    </Border>
-                                    <StackPanel Grid.Row="1" Margin="1,9,1,0">
-                                      <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Text="{Binding Name}" VerticalAlignment="Center" />
-                                      <TextBlock Style="{StaticResource CaptionText}" Margin="0,2,0,0" Text="{Binding ModelText}" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                  </Grid>
-                                </Button>
-                                <Button ToolTip="Удалить из библиотеки" HorizontalAlignment="Right" VerticalAlignment="Top" Width="32" Height="32" Margin="0,7,7,0" Style="{StaticResource IconButton}" Foreground="{DynamicResource DangerBrush}" Tag="{Binding}" Click="DeleteSkinLibraryItem_Click">
-                                  <ContentControl Content="{StaticResource SmoothTrashGeometry}" Style="{StaticResource SmoothActionIcon}" Width="14" Height="14" Foreground="{DynamicResource DangerBrush}" />
-                                </Button>
-                              </Grid>
-                            </DataTemplate>
-                          </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <StackPanel Name="SkinLibraryEmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
-                          <ContentControl Content="" Style="{StaticResource SmoothActionIcon}" Foreground="{DynamicResource PrimaryLightBrush}" HorizontalAlignment="Center" Width="30" Height="30" />
-                          <TextBlock Text="Библиотека пока пуста" FontWeight="SemiBold" Margin="0,10,0,0" HorizontalAlignment="Center" />
-                          <TextBlock Text="Добавьте PNG-скин, чтобы быстро переключаться между образами." Style="{StaticResource MutedText}" Margin="0,4,0,0" TextAlignment="Center" />
-                        </StackPanel>
-                      </Grid>
-                    </ScrollViewer>
-                  </Grid>
-                </Grid>
-              </Grid>
-            </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Border Name="SkinLibraryEmptyPanel" Visibility="Collapsed" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="24" MinHeight="220">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
+              <ContentControl Content="&#xEB4D;" Style="{StaticResource SmoothActionIcon}" Foreground="{DynamicResource PrimaryLightBrush}" HorizontalAlignment="Center" Width="32" Height="32"/>
+              <TextBlock Text="Библиотека пока пуста" FontSize="17" FontWeight="SemiBold" Margin="0,16,0,0" TextAlignment="Center"/>
+              <TextBlock Text="Нажмите «Добавить PNG», чтобы сохранить первый скин. После сохранения его можно применить к аккаунту Microsoft." Style="{StaticResource MutedText}" Margin="0,8,0,0" TextAlignment="Center" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </ScrollViewer>
+    </Grid>
+  </Grid>
+</Grid>
 <Grid Name="SettingsPage" Margin="28,24,28,20" Visibility="Collapsed">
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -542,19 +534,20 @@
                   </Border>
                   <Border Style="{StaticResource CardBorder}" Margin="0,12,0,0">
                     <StackPanel>
-                      <TextBlock Text="Офлайн-режим" Style="{StaticResource SectionTitle}" />
-                      <TextBlock Text="Создаёт локальную игровую сессию без Microsoft. Серверы с online-mode и Realms в этом режиме недоступны." Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,6,0,14" />
+                      <TextBlock Text="Аккаунт без лицензии" Style="{StaticResource SectionTitle}" />
+                      <TextBlock Text="Играйте под своим ником. Подключите Ely.by во вкладке «Скины», чтобы выбрать свой образ." Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,6,0,14" />
                       <CheckBox Name="OfflineModeCheck" Style="{StaticResource SwitchToggle}" Checked="OfflineModeCheck_Changed" Unchecked="OfflineModeCheck_Changed">
                         <StackPanel>
                           <TextBlock Text="Разрешить запуск без Microsoft-аккаунта" FontWeight="SemiBold" />
-                          <TextBlock Text="При выключении для запуска снова потребуется лицензионная сессия" Style="{StaticResource CaptionText}" Margin="0,3,12,0" />
+                          <TextBlock Text="Ник и скины Ely.by настраиваются отдельно от Microsoft." Style="{StaticResource CaptionText}" Margin="0,3,12,0" />
                         </StackPanel>
                       </CheckBox>
                       <StackPanel Name="OfflinePlayerNamePanel" Margin="0,15,0,0">
-                        <TextBlock Text="Имя офлайн-игрока" Style="{StaticResource DialogLabel}" />
+                        <TextBlock Text="Ник игрока" Style="{StaticResource DialogLabel}" />
                         <TextBox Name="OfflinePlayerNameBox" MaxLength="16" LostFocus="OfflinePlayerNameBox_LostFocus" />
                         <TextBlock Text="От 3 до 16 символов: латинские буквы, цифры и подчёркивание." Style="{StaticResource CaptionText}" Margin="0,5,0,0" />
                       </StackPanel>
+                      <Button Content="Настроить скины Ely.by" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Margin="0,14,0,0" Click="ElySettings_Click" IsEnabled="{Binding IsChecked, ElementName=OfflineModeCheck}" />
                     </StackPanel>
                   </Border>
                   <Border Style="{StaticResource CardBorder}" Margin="0,12,0,0">
@@ -747,6 +740,19 @@
                       </ComboBox>
                       <TextBlock Text="Режим «Все» включает обязательные и необязательные зависимости. Несовместимые зависимости никогда не устанавливаются." Style="{StaticResource CaptionText}" TextWrapping="Wrap" Margin="0,7,0,0" />
                     </StackPanel>
+                  </Border>
+                  <Border Style="{StaticResource CardBorder}" Margin="0,12,0,0">
+                    <Grid>
+                      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                      <TextBlock Text="Обновления лаунчера" Style="{StaticResource SectionTitle}"/>
+                      <TextBlock Name="LauncherVersionText" Grid.Row="1" Style="{StaticResource CaptionText}" Margin="0,8,0,0"/>
+                      <Grid Grid.Row="2" Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBlock Name="UpdateStatusText" Text="Проверяем новые версии при запуске" Style="{StaticResource CaptionText}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        <Button Name="UpdateCheckButton" Grid.Column="1" Content="Проверить обновления" Style="{StaticResource SecondaryButton}" Click="UpdateCheck_Click"/>
+                        <Button Name="UpdateInstallButton" Grid.Column="2" Content="Обновить" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Visibility="Collapsed" Click="UpdateInstall_Click"/>
+                      </Grid>
+                    </Grid>
                   </Border>
                   <Button Content="Сохранить настройки" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,14,0,0" Click="SaveSettingsButton_Click" />
                 </StackPanel>

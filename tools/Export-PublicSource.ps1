@@ -96,7 +96,7 @@ function Export-OrbitPublicSource {
         }
     }
     $files = @('.gitignore','LICENSE','README.md','RELEASE_AUDIT.md','OrbitLauncher.csproj','app.ico','app.manifest','app.xaml',
-        'App.xaml.cs','GlobalUsings.cs','mainwindow.xaml','MainWindow.xaml.cs','build.bat',
+        'App.xaml.cs','GlobalUsings.cs','mainwindow.xaml','MainWindow.xaml.cs','MainWindow.Updates.cs','MainWindow.Ely.cs','MainWindow.Connect.cs','ELY_SKINS.md','UPDATING.md','NETWORK_REFILL_FIXES.md','build.bat',
         'cleaning.bat','client-build.bat','sign-file.bat','Utilities\AppConfiguration.Local.cs.example',
         'installer\OrbitLauncher.iss','tools\Build-GitHub.ps1','tools\Export-PublicSource.ps1','tools\GitHub-README.ru.txt','tools\Release-Probe.cs.txt',
         'OrbitClient\build.gradle','OrbitClient\settings.gradle','OrbitClient\gradle.properties','OrbitClient\gradlew',
@@ -108,7 +108,22 @@ function Export-OrbitPublicSource {
     foreach ($dir in @('Controls','Dialogs','Models','Services','Utilities','CompilerSupport')) { Copy-ApprovedTree $dir @('.cs','.xaml') }
     Copy-ApprovedTree 'themes' @('.xaml')
     foreach ($asset in @('cave.png','fight.png','forest.png','ghast.png','nether.png','orbitlauncher.png','space.png','village.png','water.png',
-        'OrbitClient\components.json','OrbitClient\orbit-client-26.2.jar','Icons\TABLER-LICENSE.txt')) { Copy-ApprovedFile ('Assets\'+$asset) }
+        'OrbitClient\components.json','OrbitClient\orbit-client-26.2.jar','SkinBridge\orbit-skin-bridge.jar','Icons\TABLER-LICENSE.txt')) { Copy-ApprovedFile ('Assets\'+$asset) }
+    Copy-ApprovedTree 'SkinBridge\src' @('.java')
+    Copy-ApprovedTree 'SkinBridge\tools' @('.java')
+    Copy-ApprovedTree 'SkinBridge\tests' @('.java')
+    Copy-ApprovedFile 'SkinBridge\build.ps1'
+    Copy-ApprovedFile 'SkinBridge\LICENSE-ASM.txt'
+    Copy-ApprovedFile 'SkinBridge\README.md'
+    Copy-ApprovedTree 'Assets\OrbitConnect' @('.json','.txt','.jar')
+    Copy-ApprovedTree 'OrbitConnect\src' @('.java')
+    Copy-ApprovedTree 'OrbitConnect\tools' @('.java')
+    Copy-ApprovedTree 'OrbitConnect\tests' @('.java')
+    Copy-ApprovedTree 'OrbitConnect\live-test' @('.java')
+    foreach ($file in @('README.md','compatibility.json','build.ps1','test.ps1','build-live-test.ps1')) { Copy-ApprovedFile ('OrbitConnect\'+$file) }
+    Copy-ApprovedFile 'docs\ORBIT_CONNECT.md'
+    Copy-ApprovedFile 'docs\ORBIT_CONNECT_ZAPRET.md'
+    Copy-ApprovedFile 'docs\FINAL_AUDIT_2026-10-20.md'
     Copy-ApprovedTree 'Tests' @('.cs','.csproj')
     Copy-ApprovedTree 'OrbitClient\src' @('.java','.json','.png','.mcmeta')
     Copy-ApprovedTree 'OrbitClient\tools' @('.java','.ps1')

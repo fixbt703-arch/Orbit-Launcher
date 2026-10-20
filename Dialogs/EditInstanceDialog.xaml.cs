@@ -67,6 +67,7 @@ public partial class EditInstanceDialog : Window
 		JavaPathBox.Text = instance.JavaPath;
 		LaunchVersionBox.Text = instance.LaunchVersionId;
 		OrbitClientCheck.IsChecked = instance.OrbitClientEnabled;
+		OrbitConnectCheck.IsChecked = instance.OrbitConnectEnabled;
 		ApplyOrbitClientLock(instance.OrbitClientEnabled);
 		LocalizationService.Apply(this);
 		base.Loaded += async delegate
@@ -107,8 +108,8 @@ public partial class EditInstanceDialog : Window
 				await RefreshLoaderVersionsAsync();
 				if (_closed) return;
 				if (OrbitClientCheck.IsChecked != enabled) { ApplyOrbitClientLock(OrbitClientCheck.IsChecked == true); return; }
-				Version result;
-				LoaderVersionInfo loaderVersionInfo = LoaderVersions.FirstOrDefault((LoaderVersionInfo version) => Version.TryParse(version.Id, out result) && result >= new Version(0, 19, 3));
+				Version? result;
+				LoaderVersionInfo? loaderVersionInfo = LoaderVersions.FirstOrDefault((LoaderVersionInfo version) => Version.TryParse(version.Id, out result) && result >= new Version(0, 19, 3));
 				if (loaderVersionInfo == null)
 				{
 					OrbitClientCheck.IsChecked = false;
@@ -219,7 +220,7 @@ public partial class EditInstanceDialog : Window
 			LocalizationService.Show(this, "Orbit Client поддерживает только Minecraft 26.2 + Fabric.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
 			return;
 		}
-		if (OrbitClientCheck.IsChecked == true && (!Version.TryParse(text3, out Version result) || result < new Version(0, 19, 3)))
+		if (OrbitClientCheck.IsChecked == true && (!Version.TryParse(text3, out var result) || result < new Version(0, 19, 3)))
 		{
 			LocalizationService.Show(this, "Orbit Client требует Fabric Loader 0.19.3 или новее.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
 			return;
@@ -235,6 +236,7 @@ public partial class EditInstanceDialog : Window
 		_instance.Loader = selectedLoader;
 		_instance.LoaderVersion = text3;
 		_instance.OrbitClientEnabled = OrbitClientCheck.IsChecked == true;
+		_instance.OrbitConnectEnabled = OrbitConnectCheck.IsChecked == true;
 		_instance.MinimumRamMb = result2;
 		_instance.MaximumRamMb = result3;
 		_instance.JavaPath = JavaPathBox.Text.Trim();

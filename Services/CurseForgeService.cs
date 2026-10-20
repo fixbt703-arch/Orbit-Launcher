@@ -193,10 +193,9 @@ public sealed class CurseForgeService
 
         if (project.ProjectType == "mod")
         {
-            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var installed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var mode = dependencyDownloadMode is "all" or "none" ? dependencyDownloadMode : "required";
-            var path = await InstallModProjectAsync(project.ProjectId, instance, loader, mode, visited, installed, progress, cancellationToken, selectedFileId);
+            var path = await InstallModProjectAsync(project.ProjectId, instance, loader, mode, installed, progress, cancellationToken, selectedFileId);
             var dependencyCount = Math.Max(0, installed.Count - 1);
             var dependencyText = dependencyCount > 0 ? $" Зависимостей установлено: {dependencyCount}." : string.Empty;
             return new ModDownloadResult(path, $"Мод установлен в сборку «{instance.Name}».{dependencyText}", true);
@@ -226,54 +225,171 @@ public sealed class CurseForgeService
         GameInstance instance,
         string loader,
         string dependencyDownloadMode,
-        HashSet<string> visited,
         HashSet<string> installed,
         IProgress<double>? progress,
         CancellationToken cancellationToken,
         int? selectedFileId = null)
     {
-        if (!visited.Add(projectId))
-            return string.Empty;
-        var completed = false;
-        try
+        var plan = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        async Task Resolve(string id, int? fileId = null)
         {
-            using var filesDocument = selectedFileId is null
-                ? await GetCompatibleFilesAsync(projectId, instance.GameVersion, loader, cancellationToken)
-                : await GetJsonAsync($"{_apiBase}/mods/{Uri.EscapeDataString(projectId)}/files/{selectedFileId}", cancellationToken);
-            var file = selectedFileId is null ? SelectBestFile(filesDocument.RootElement) : filesDocument.RootElement.GetProperty("data");
-            if (file.ValueKind != JsonValueKind.Object)
-                throw new InvalidOperationException("У мода или одной из его зависимостей нет совместимого файла для этой сборки.");
-
+            cancellationToken.ThrowIfCancellationRequested();
+            if (plan.ContainsKey(id)) return;
+            JsonElement file;
+            if (fileId is null)
+            {
+                file = await FindCompatibleModFileAsync(id, instance.GameVersion, loader, cancellationToken);
+            }
+            else
+            {
+                using var document = await GetJsonAsync($"{_apiBase}/mods/{Uri.EscapeDataString(id)}/files/{fileId}", cancellationToken);
+                file = document.RootElement.GetProperty("data").Clone();
+                if (!IsCompatibleModFile(file, instance.GameVersion, loader) || file.GetProperty("id").GetInt32() != fileId)
+                    throw new InvalidDataException($"Выбранный файл проекта {id} несовместим с Minecraft {instance.GameVersion} / {instance.Loader}.");
+            }
+            if (file.TryGetProperty("modId", out var owner) && owner.GetInt32().ToString() != id)
+                throw new InvalidDataException("CurseForge вернул файл другого проекта: " + id);
+            plan[id] = file;
             if (dependencyDownloadMode != "none" && file.TryGetProperty("dependencies", out var dependencies))
             {
                 foreach (var dependency in dependencies.EnumerateArray())
                 {
                     var relation = dependency.TryGetProperty("relationType", out var relationType) ? relationType.GetInt32() : 0;
                     var shouldInstall = relation == 3 || dependencyDownloadMode == "all" && relation == 2;
-                    if (!shouldInstall || !dependency.TryGetProperty("modId", out var dependencyId))
-                        continue;
+                    if (!shouldInstall) continue;
+                    if (!dependency.TryGetProperty("modId", out var dependencyId))
+                        throw new InvalidDataException("CurseForge не вернул ID зависимости проекта " + id);
+                    var previousPlan = relation == 2 ? new Dictionary<string, JsonElement>(plan, StringComparer.OrdinalIgnoreCase) : null;
                     try
                     {
-                        await InstallModProjectAsync(dependencyId.GetInt32().ToString(), instance, loader, dependencyDownloadMode, visited, installed, null, cancellationToken);
+                        await Resolve(dependencyId.GetInt32().ToString());
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException && relation == 2)
                     {
-                        // Необязательная зависимость не блокирует установку основного мода.
+                        plan = previousPlan!;
                     }
                 }
             }
-
-            Directory.CreateDirectory(instance.ModsPath);
-            var path = await DownloadFileEntryAsync(projectId, file, instance.ModsPath, progress, cancellationToken);
-            installed.Add(projectId);
-            completed = true;
-            return path;
         }
-        finally
+        await Resolve(projectId, selectedFileId);
+        string[] Dependencies(JsonElement file, int relation) => file.TryGetProperty("dependencies", out var dependencies)
+            ? dependencies.EnumerateArray().Where(dependency => dependency.TryGetProperty("relationType", out var type) && type.GetInt32() == relation
+                && dependency.TryGetProperty("modId", out _)).Select(dependency => dependency.GetProperty("modId").GetInt32().ToString()).Distinct().ToArray() : [];
+        var reachable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var mandatory = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Visit(string id, bool required)
         {
-            if (!completed)
-                visited.Remove(projectId);
+            if (!plan.TryGetValue(id, out var file)) return;
+            var first = reachable.Add(id); var promoted = required && mandatory.Add(id);
+            if ((!first && !promoted) || dependencyDownloadMode == "none") return;
+            foreach (var dependency in Dependencies(file, 3)) Visit(dependency, required);
+            if (dependencyDownloadMode == "all") foreach (var dependency in Dependencies(file, 2)) Visit(dependency, false);
         }
+        Visit(projectId, true);
+        var prepared = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        CatalogModInstaller.Request Request(string id, JsonElement file, bool required) => new(id, async directory =>
+        {
+            string path;
+            if (prepared.TryGetValue(id, out var cached) && File.Exists(cached))
+            {
+                path = Path.Combine(directory, Path.GetFileName(cached)); File.Move(cached, path);
+            }
+            else path = await DownloadFileEntryAsync(id, file, directory, id == projectId ? progress : null, cancellationToken);
+            return path;
+        }, required, dependencyDownloadMode == "none" ? [] : Dependencies(file, 3),
+            dependencyDownloadMode == "all" ? Dependencies(file, 2) : [], Dependencies(file, 5),
+            dependencyDownloadMode == "none" ? null : ResolveManifestDependencies);
+
+        async Task<IReadOnlyList<CatalogModInstaller.Request>> ResolveManifestDependencies(string path, CancellationToken token)
+        {
+            var provided = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var installedPath in Directory.Exists(instance.ModsPath) ? Directory.EnumerateFiles(instance.ModsPath, "*.jar") : [])
+            {
+                try { foreach (var mod in ForgeModManifest.Read(installedPath).Mods) provided[mod.Key] = mod.Value; }
+                catch (Exception ex) when (ex is IOException or InvalidDataException) { }
+            }
+            var requests = new List<CatalogModInstaller.Request>();
+            foreach (var dependency in ForgeModManifest.Read(path).Dependencies.Where(dependency => dependency.Required && dependency.Side != "SERVER"))
+            {
+                if (dependency.Id is "minecraft" or "forge" or "neoforge" or "java" or "fml" or "javafml" or "lowcodefml") continue;
+                if (provided.TryGetValue(dependency.Id, out var version) && ForgeModManifest.Matches(version, dependency.Range)) continue;
+                // These stable catalog IDs avoid ambiguous text search for common library mod IDs.
+                var known = dependency.Id switch { "geckolib" => "388172", "yet_another_config_lib_v3" => "667299", _ => null };
+                var candidates = new List<string>();
+                if (known is not null) candidates.Add(known);
+                else
+                {
+                    var stem = Regex.Replace(dependency.Id, @"_v\d+$", "");
+                    foreach (var query in new[] { dependency.Id, stem.Replace('_', ' '), stem.Replace("_", "") }.Distinct())
+                    {
+                        var search = await SearchAsync(new(query, "mod", instance.GameVersion, loader, "", "all", "relevance", 0, 10), token);
+                        candidates.AddRange(search.Items.Select(project => project.ProjectId));
+                    }
+                }
+                CatalogModInstaller.Request? found = null;
+                foreach (var candidate in candidates.Distinct().Take(12))
+                {
+                    try
+                    {
+                        if (!plan.TryGetValue(candidate, out var candidateFile))
+                            candidateFile = await FindCompatibleModFileAsync(candidate, instance.GameVersion, loader, token);
+                        if (!prepared.TryGetValue(candidate, out var candidatePath) || !File.Exists(candidatePath))
+                        {
+                            var folder = Path.Combine(Path.GetDirectoryName(path)!, "manifest-dependencies", candidate);
+                            Directory.CreateDirectory(folder);
+                            candidatePath = await DownloadFileEntryAsync(candidate, candidateFile, folder, null, token);
+                            prepared[candidate] = candidatePath;
+                        }
+                        var metadata = ForgeModManifest.Read(candidatePath);
+                        if (!metadata.Mods.TryGetValue(dependency.Id, out var actual) || !ForgeModManifest.Matches(actual, dependency.Range)) continue;
+                        await Resolve(candidate);
+                        var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        void AddTree(string id, bool required)
+                        {
+                            if (!plan.TryGetValue(id, out var file) || !added.Add(id)) return;
+                            requests.Add(Request(id, file, required));
+                            foreach (var dependency in Dependencies(file, 3)) AddTree(dependency, required);
+                            if (dependencyDownloadMode == "all") foreach (var dependency in Dependencies(file, 2)) AddTree(dependency, false);
+                        }
+                        AddTree(candidate, true);
+                        found = Request(candidate, candidateFile, true);
+                        break;
+                    }
+                    catch (HttpRequestException) { }
+                    catch (InvalidOperationException) when (known is null) { }
+                }
+                if (found is null) throw new InvalidDataException($"Мод {Path.GetFileName(path)} требует {dependency.Id} {dependency.Range}. Совместимая библиотека не найдена в CurseForge; состав сборки не изменён.");
+            }
+            return requests;
+        }
+        var requests = plan.Where(entry => reachable.Contains(entry.Key)).Select(entry => Request(entry.Key, entry.Value, mandatory.Contains(entry.Key))).ToArray();
+        var results = await CatalogModInstaller.InstallAsync(instance, "curseforge", requests, cancellationToken);
+        installed.UnionWith(results.Keys);
+        return results[projectId];
+    }
+
+    private async Task<JsonElement> FindCompatibleModFileAsync(string projectId, string gameVersion, string loader, CancellationToken token)
+    {
+        for (var index = 0; index < 1000; index += 50)
+        {
+            using var document = await GetCompatibleFilesAsync(projectId, gameVersion, loader, token, index);
+            if (!document.RootElement.TryGetProperty("data", out var files) || files.ValueKind != JsonValueKind.Array) break;
+            var file = files.EnumerateArray().Where(file => IsCompatibleModFile(file, gameVersion, loader))
+                .OrderBy(file => file.TryGetProperty("releaseType", out var type) ? type.GetInt32() : 9)
+                .ThenByDescending(file => DateValue(file, "fileDate") ?? DateTime.MinValue).FirstOrDefault();
+            if (file.ValueKind == JsonValueKind.Object) return file.Clone();
+            if (files.GetArrayLength() < 50) break;
+        }
+        throw new InvalidOperationException($"У проекта {projectId} или его зависимости нет файла для Minecraft {gameVersion} / {loader}.");
+    }
+
+    private static bool IsCompatibleModFile(JsonElement file, string gameVersion, string loader)
+    {
+        if (file.ValueKind != JsonValueKind.Object || file.TryGetProperty("isAvailable", out var available) && !available.GetBoolean()
+            || !file.TryGetProperty("gameVersions", out var versions) || versions.ValueKind != JsonValueKind.Array) return false;
+        var tags = versions.EnumerateArray().Where(value => value.ValueKind == JsonValueKind.String).Select(value => value.GetString() ?? "").ToArray();
+        return tags.Contains(gameVersion, StringComparer.OrdinalIgnoreCase)
+            && (!tags.Any(tag => LoaderType(tag) != 0) || tags.Contains(loader, StringComparer.OrdinalIgnoreCase));
     }
 
     private async Task<JsonDocument> GetCompatibleFilesAsync(string projectId, string gameVersion, string loader, CancellationToken cancellationToken, int index = 0)

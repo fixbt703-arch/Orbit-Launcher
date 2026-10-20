@@ -18,6 +18,7 @@ final class OrbitFonts {
     private static final FontDescription BRAND=new FontDescription.Resource(Identifier.fromNamespaceAndPath("orbit_client","ui_brand"));
     private static Font source;
     private static final java.util.Map<FontDescription,Font> cached=new java.util.HashMap<>();
+    static boolean owns(Font font){return cached.containsValue(font);}
     static MutableComponent text(String value){return Component.literal(value).withStyle(style->style.withFont(UI));}
     static Font ui(){return font(UI);}
     static Font strong(){return font(STRONG);}

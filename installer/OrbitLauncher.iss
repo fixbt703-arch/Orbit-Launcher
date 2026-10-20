@@ -64,4 +64,40 @@ Name: "{autoprograms}\Orbit Launcher"; Filename: "{app}\{#AppExeName}"; WorkingD
 Name: "{autodesktop}\Orbit Launcher"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,Orbit Launcher}"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,Orbit Launcher}"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent; Check: not IsOrbitUpdate
+Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Flags: nowait; Check: IsOrbitUpdate
+
+[Code]
+function OpenProcess(DesiredAccess: LongWord; InheritHandle: Boolean; ProcessId: LongWord): THandle;
+  external 'OpenProcess@kernel32.dll stdcall';
+function WaitForSingleObject(Handle: THandle; Milliseconds: LongWord): LongWord;
+  external 'WaitForSingleObject@kernel32.dll stdcall';
+function CloseHandle(Handle: THandle): Boolean;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+function IsOrbitUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:ORBITUPDATE|0}') = '1';
+end;
+
+function InitializeSetup: Boolean;
+var
+  LauncherPid: Integer;
+  LauncherHandle: THandle;
+begin
+  Result := True;
+  if not IsOrbitUpdate then Exit;
+  LauncherPid := StrToIntDef(ExpandConstant('{param:ORBITUPDATEPID|0}'), 0);
+  if LauncherPid <= 0 then begin Result := False; Exit; end;
+  { Wait only for the launcher which requested this update, never terminate Minecraft. }
+  LauncherHandle := OpenProcess($00100000, False, LauncherPid);
+  if LauncherHandle = 0 then Exit;
+  try
+    if WaitForSingleObject(LauncherHandle, 60000) <> 0 then begin
+      MsgBox('Orbit Launcher is still running. Close it and run the update again.', mbError, MB_OK);
+      Result := False;
+    end;
+  finally
+    CloseHandle(LauncherHandle);
+  end;
+end;

@@ -1,0 +1,5 @@
+[
+  { "id":"community-tcp", "owner":"etcat-community-1", "endpoint":"tcp://38.76.179.190:11010", "relay":true, "source":"https://github.com/EasyTier/etcat/blob/main/relays.toml" },
+  { "id":"community-wss", "owner":"etcat-community-1", "endpoint":"wss://relay.38-76-179-190.sslip.io/", "relay":true, "source":"https://github.com/EasyTier/etcat/blob/main/relays.toml" },
+  { "id":"jiali-us", "owner":"jiali", "endpoint":"tcp://us01.225284.xyz:11010", "relay":true, "source":"https://upt.jiali.yun/" }
+]

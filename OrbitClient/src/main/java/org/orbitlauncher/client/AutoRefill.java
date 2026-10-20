@@ -2,91 +2,58 @@ package org.orbitlauncher.client;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.network.HashedStack;
-import net.minecraft.network.protocol.game.ServerboundContainerClickPacket;
-import it.unimi.dsi.fastutil.ints.Int2ObjectMaps;
+import org.orbitlauncher.client.mixin.ClientLevelPredictionAccessor;
+import org.orbitlauncher.client.mixin.RefillHandAccessor;
 
-/** Server-synchronised hotbar refill after the final block in the selected stack is placed. */
+/** Uses vanilla's predicted SWAP immediately after the final successful placement. */
 public final class AutoRefill {
-    private static int pendingSlot=-1;
-    private static int pendingTicks;
+    private static int pendingSlot=-1,previousSequence=-1;
     private static ItemStack placedStack=ItemStack.EMPTY;
     private static Player pendingPlayer;
-    private static boolean depleted,swapping,targetConfirmed,sourceConfirmed;
-    private static int sourceSlot=-1;
-    private static ItemStack replacement=ItemStack.EMPTY;
     private AutoRefill() { }
 
     public static void recordUse(Player player,InteractionHand hand) {
         Minecraft mc=Minecraft.getInstance();
-        if(player!=mc.player || hand!=InteractionHand.MAIN_HAND || !OrbitClient.enabled(Module.AUTO_REFILL)
-            || pendingSlot>=0 || mc.gui.screen()!=null || player.containerMenu!=player.inventoryMenu
-            || !player.inventoryMenu.getCarried().isEmpty() || mc.gameMode==null || mc.gameMode.isSpectator())return;
+        if(player!=mc.player||hand!=InteractionHand.MAIN_HAND||!OrbitClient.enabled(Module.AUTO_REFILL)
+            ||pendingSlot>=0||!available(mc,player)||mc.level==null)return;
         ItemStack selected=player.getInventory().getSelectedItem();
-        if(selected.getCount()!=1 || !(selected.getItem() instanceof BlockItem))return;
-        pendingSlot=player.getInventory().getSelectedSlot();
-        pendingPlayer=player;
+        if(selected.getCount()!=1||!(selected.getItem() instanceof BlockItem))return;
+        pendingSlot=player.getInventory().getSelectedSlot();pendingPlayer=player;
         placedStack=selected.copyWithCount(1);
-        pendingTicks=80;
+        previousSequence=((ClientLevelPredictionAccessor)mc.level).orbit$predictions().currentSequence();
     }
-
-    public static void tick(Minecraft mc) {
-        if(!OrbitClient.enabled(Module.AUTO_REFILL) || mc.player==null || mc.gameMode==null || mc.player!=pendingPlayer) {reset();return;}
-        if(pendingTicks<=0)return;
-        if(mc.gui.screen()!=null || mc.gameMode.isSpectator() || mc.player.isDeadOrDying()
-            || mc.player.containerMenu!=mc.player.inventoryMenu || !mc.player.inventoryMenu.getCarried().isEmpty()) {reset();return;}
-        var inventory=mc.player.getInventory();
-        if(inventory.getSelectedSlot()!=pendingSlot) {reset();return;}
-        if(--pendingTicks<=0){reset();return;}
-        if(swapping || !depleted || !inventory.getSelectedItem().isEmpty())return;
-
-        int source=findReplacement(mc.player,placedStack,pendingSlot,true,false);
-        if(source>=0) {
-            var menuSlot=mc.player.inventoryMenu.findSlot(inventory,source);
-            if(menuSlot.isPresent() && mc.getConnection()!=null){
-                sourceSlot=source;replacement=inventory.getItem(source).copy();swapping=true;pendingTicks=80;
-                // Do not call handleContainerInput: its local prediction can race a delayed
-                // placement correction and temporarily erase both visible stacks. Empty
-                // changedSlots asks vanilla to return the authoritative result of the swap.
-                var menu=mc.player.inventoryMenu;
-                mc.getConnection().send(new ServerboundContainerClickPacket(menu.containerId,menu.getStateId(),
-                    (short)menuSlot.getAsInt(),(byte)pendingSlot,ContainerInput.SWAP,Int2ObjectMaps.emptyMap(),
-                    HashedStack.create(menu.getCarried(),mc.getConnection().decoratedHashOpsGenenerator())));
-            }else reset();
-        }else reset();
+    private static boolean available(Minecraft mc,Player player){
+        return mc.gui.screen()==null&&mc.gameMode!=null&&!mc.gameMode.isSpectator()&&mc.getConnection()!=null
+            &&!player.isDeadOrDying()&&!player.getAbilities().instabuild
+            &&player.containerMenu==player.inventoryMenu&&player.inventoryMenu.getCarried().isEmpty();
     }
-
-    /** Called after vanilla applies an inventory update on the client thread. */
-    public static void serverSlot(int slot,ItemStack contents){
-        if(pendingSlot<0 || pendingPlayer!=Minecraft.getInstance().player)return;
-        if(!swapping){
-            if(slot!=pendingSlot)return;
-            depleted=contents.isEmpty();
-            if(!contents.isEmpty()&&!ItemStack.isSameItemSameComponents(contents,placedStack))reset();
-            return;
-        }
-        if(slot==pendingSlot){
-            if(!ItemStack.matches(contents,replacement)){reset();return;}
-            targetConfirmed=true;
-        }else if(slot==sourceSlot){
-            if(!contents.isEmpty()){reset();return;}
-            sourceConfirmed=true;
-        }
-        if(targetConfirmed&&sourceConfirmed)reset();
+    public static void finishUse(Player player,InteractionHand hand,InteractionResult result){
+        if(pendingSlot<0||player!=pendingPlayer||hand!=InteractionHand.MAIN_HAND)return;
+        Minecraft mc=Minecraft.getInstance();int target=pendingSlot,sequence=previousSequence;ItemStack previous=placedStack;
+        // Consume the request before invoking vanilla: packet corrections never replay a swap.
+        reset();
+        if(player!=mc.player||!OrbitClient.enabled(Module.AUTO_REFILL)||!available(mc,player)||mc.level==null
+            ||result==null||!result.consumesAction()||player.getInventory().getSelectedSlot()!=target
+            ||!player.getInventory().getItem(target).isEmpty()
+            ||((ClientLevelPredictionAccessor)mc.level).orbit$predictions().currentSequence()<=sequence)return;
+        int source=findReplacement(player,previous,target,true,false);if(source<0)return;
+        var mapped=player.inventoryMenu.findSlot(player.getInventory(),source);if(mapped.isEmpty())return;
+        // useItemOn has already queued the placement. The ordered connection sends this
+        // ordinary inventory click after it; vanilla predicts and reconciles both slots.
+        // Waiting for an ACK here leaves the hotbar and first-person hand empty for an RTT.
+        mc.gameMode.handleContainerInput(player.inventoryMenu.containerId,mapped.getAsInt(),target,ContainerInput.SWAP,player);
+        var replacement=player.getMainHandItem();
+        // The renderer may still hold the consumed (now empty) stack until its next tick.
+        // Continue with the actual replacement stack, preserving the existing equip height.
+        if(ItemStack.isSameItemSameComponents(previous,replacement))
+            ((RefillHandAccessor)mc.gameRenderer.itemInHandRenderer).orbit$heldStack(replacement);
     }
-    public static void serverMenuSlot(int containerId,int menuSlot,ItemStack contents){
-        if(pendingSlot<0 || pendingPlayer!=Minecraft.getInstance().player
-            || containerId!=pendingPlayer.inventoryMenu.containerId)return;
-        var inventory=pendingPlayer.getInventory();
-        for(int slot=0;slot<36;slot++){
-            var mapped=pendingPlayer.inventoryMenu.findSlot(inventory,slot);
-            if(mapped.isPresent()&&mapped.getAsInt()==menuSlot){serverSlot(slot,contents);return;}
-        }
-    }
+    public static void tick(Minecraft mc){reset();}
 
     static int findReplacement(Player player,ItemStack previous,int selectedSlot,boolean preferSame,boolean allowOther) {
         int same=-1,other=-1,sameCount=-1,otherCount=-1;
@@ -103,8 +70,5 @@ public final class AutoRefill {
         return preferSame?same:-1;
     }
 
-    public static void reset() {
-        pendingSlot=sourceSlot=-1;pendingTicks=0;placedStack=replacement=ItemStack.EMPTY;
-        pendingPlayer=null;depleted=swapping=targetConfirmed=sourceConfirmed=false;
-    }
+    public static void reset(){pendingSlot=previousSequence=-1;pendingPlayer=null;placedStack=ItemStack.EMPTY;}
 }

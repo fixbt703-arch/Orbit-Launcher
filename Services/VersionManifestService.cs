@@ -22,10 +22,9 @@ public sealed class VersionManifestService
 
 	public async Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(bool includeSnapshots, CancellationToken cancellationToken = default(CancellationToken))
 	{
-		using HttpResponseMessage response = await _httpClient.GetAsync(_manifestUrl, cancellationToken);
-		response.EnsureSuccessStatusCode();
+		var metadata = await LauncherNetwork.GetMetadataAsync(_httpClient, _manifestUrl, cancellationToken);
 		IReadOnlyList<MinecraftVersionInfo> result;
-		await using (Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken))
+		using (Stream stream = new MemoryStream(metadata, writable: false))
 		{
 			using JsonDocument jsonDocument = await JsonDocument.ParseAsync(stream, default(JsonDocumentOptions), cancellationToken);
 			List<MinecraftVersionInfo> list = new List<MinecraftVersionInfo>();

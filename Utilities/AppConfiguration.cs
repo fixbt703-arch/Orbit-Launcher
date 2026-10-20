@@ -23,6 +23,8 @@ internal static partial class AppConfiguration
     public const string ForgeMavenMetadataApi = "https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml";
     public const string NeoForgeMavenMetadataApi = "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
     public const string FabricApiProjectId = "P7dR8mSH";
+    public const string GitHubOwner = "fixbt703-arch";
+    public const string GitHubRepository = "Orbit-Launcher";
 
     static AppConfiguration()
     {

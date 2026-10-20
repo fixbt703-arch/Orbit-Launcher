@@ -16,8 +16,21 @@ public partial class App : Application
 
 	protected override void OnStartup(StartupEventArgs e)
 	{
+		if (e.Args.Length == 2 && e.Args[0] == "--connect-worker")
+		{
+			ShutdownMode = ShutdownMode.OnExplicitShutdown;
+			base.OnStartup(e);
+			_ = System.Threading.Tasks.Task.Run(async () =>
+			{
+				try { await Services.Connect.ConnectWorkerClient.RunWorkerAsync(e.Args[1]); }
+				catch (Exception) { }
+				finally { await Dispatcher.InvokeAsync(() => Shutdown()); }
+			});
+			return;
+		}
 		LocalizationService.SetLanguage(ReadSavedLanguage());
 		InterfaceTheme.Initialize();
+		StartupUri = new Uri("MainWindow.xaml", UriKind.Relative);
 		base.OnStartup(e);
 		base.DispatcherUnhandledException += OnDispatcherUnhandledException;
 	}

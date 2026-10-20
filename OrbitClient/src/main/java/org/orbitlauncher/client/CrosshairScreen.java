@@ -75,7 +75,7 @@ final class CrosshairScreen extends OrbitScrollScreen {
         for(int yy=py+6;yy<py+ph-6;yy+=18)for(int xx=rightX+6;xx<rightX+rightW-6;xx+=18)g.fill(xx,yy,xx+1,yy+1,0x446D7D9E);
         int px=mx>=rightX&&mx<rightX+rightW&&my>=py&&my<py+ph?mx:rightX+rightW/2;
         int cy=mx>=rightX&&mx<rightX+rightW&&my>=py&&my<py+ph?my:py+ph/2;
-        CrosshairRenderer.draw(g,px,cy,state(),false);g.disableScissor();
+        CrosshairRenderer.draw(g,px,cy,state(),false,0);g.disableScissor();
         if(state().crosshairMode==2) {
             String bits=CrosshairPattern.pixels(state());
             for(int row=0;row<15;row++)for(int col=0;col<15;col++) {

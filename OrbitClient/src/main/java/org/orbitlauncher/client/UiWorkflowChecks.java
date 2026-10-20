@@ -13,7 +13,7 @@ final class UiWorkflowChecks {
     private static final KeyEvent SPACE=new KeyEvent(GLFW.GLFW_KEY_SPACE,0,0);
     private static final KeyEvent ENTER=new KeyEvent(GLFW.GLFW_KEY_ENTER,0,0);
     static void verify(Minecraft mc){
-        var previous=mc.gui.screen();String language=mc.options.languageCode;boolean enabled=OrbitClient.config.state(Module.FPS).enabled,shadow=OrbitClient.config.state(Module.FPS).shadow;int panelWidth=OrbitClient.config.state(Module.FPS).panelWidth;
+        var previous=mc.gui.screen();String language=mc.options.languageCode;boolean enabled=OrbitClient.config.state(Module.FPS).enabled,accent=OrbitClient.config.state(Module.FPS).accentBar;int panelWidth=OrbitClient.config.state(Module.FPS).panelWidth;
         try{
             var menu=new OrbitScreen();mc.gui.setScreen(menu);
             var field=search(menu);
@@ -58,18 +58,18 @@ final class UiWorkflowChecks {
                 if(panel.getFocused() instanceof AbstractWidget w)reachable.add(w);
             }
             require(reachable.containsAll(expected),"Shift+Tab cannot reach all scrolled settings");
-            var shadowToggle=panel.children().stream().filter(c->c instanceof OrbitSwitch s&&s.label.equals(tr("Тень текста","Text shadow"))).map(c->(OrbitSwitch)c).findFirst().orElseThrow();
-            panel.setFocused(shadowToggle);panel.keyPressed(SPACE);
-            require(OrbitClient.config.state(Module.FPS).shadow!=shadow,"Settings toggle did not change the value");
-            require(panel.getFocused() instanceof OrbitSwitch s&&s.label.equals(shadowToggle.label),"Rebuilding settings loses keyboard focus");
-            panel.keyPressed(SPACE);require(OrbitClient.config.state(Module.FPS).shadow==shadow,"Repeated keyboard toggle did not restore the value");
+            var accentToggle=panel.children().stream().filter(c->c instanceof OrbitSwitch s&&s.label.equals(tr("Акцентная полоса","Accent stripe"))).map(c->(OrbitSwitch)c).findFirst().orElseThrow();
+            panel.setFocused(accentToggle);panel.keyPressed(SPACE);
+            require(OrbitClient.config.state(Module.FPS).accentBar!=accent,"Settings toggle did not change the value");
+            require(panel.getFocused() instanceof OrbitSwitch s&&s.label.equals(accentToggle.label),"Rebuilding settings loses keyboard focus");
+            panel.keyPressed(SPACE);require(OrbitClient.config.state(Module.FPS).accentBar==accent,"Repeated keyboard toggle did not restore the value");
             var width=panel.children().stream().filter(c->c instanceof OrbitButton b&&b.getMessage().getString().startsWith(tr("Ширина: ","Width: "))).map(c->(OrbitButton)c).findFirst().orElseThrow();
             panel.setFocused(width);panel.keyPressed(ENTER);
             require(OrbitClient.config.state(Module.FPS).panelWidth!=panelWidth,"Value-cycle action did not change the value");
             require(panel.getFocused() instanceof OrbitButton b&&b.focusKey().equals(width.focusKey()),"A changing button label loses focus");
             OrbitClient.LOG.info("UI workflow: search, empty recovery, module persistence, return context, keyboard traversal and focus restoration passed");
         }finally{
-            OrbitClient.config.state(Module.FPS).enabled=enabled;OrbitClient.config.state(Module.FPS).shadow=shadow;OrbitClient.config.state(Module.FPS).panelWidth=panelWidth;mc.options.languageCode=language;OrbitClient.save();mc.gui.setScreen(previous);
+            OrbitClient.config.state(Module.FPS).enabled=enabled;OrbitClient.config.state(Module.FPS).accentBar=accent;OrbitClient.config.state(Module.FPS).panelWidth=panelWidth;mc.options.languageCode=language;OrbitClient.save();mc.gui.setScreen(previous);
         }
     }
     private static EditBox search(OrbitScreen menu){return menu.children().stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow();}

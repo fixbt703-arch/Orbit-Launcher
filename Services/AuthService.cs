@@ -14,6 +14,8 @@ namespace OrbitLauncher.Services;
 public sealed class AuthService
 {
 	private readonly HttpClient _httpClient;
+	private readonly Func<Task<MSession>>? _silentAuthentication;
+	private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
 	private MSession? _microsoftSession;
 
@@ -25,9 +27,10 @@ public sealed class AuthService
 
 	public bool IsSignedIn => _microsoftSession != null;
 
-	public AuthService(HttpClient httpClient)
+	public AuthService(HttpClient httpClient, Func<Task<MSession>>? silentAuthentication = null)
 	{
 		_httpClient = httpClient;
+		_silentAuthentication = silentAuthentication;
 	}
 
 	public async Task<MSession?> TryRestoreSessionAsync(LauncherSettings settings)
@@ -38,9 +41,7 @@ public sealed class AuthService
 		}
 		try
 		{
-			MSession mSession = await (await GetLoginHandlerAsync(settings.MicrosoftClientId)).AuthenticateSilently();
-			SetSession(mSession);
-			return mSession;
+			return await GetRequiredSessionAsync(settings);
 		}
 		catch
 		{
@@ -55,18 +56,29 @@ public sealed class AuthService
 		{
 			throw new InvalidOperationException("Укажите Microsoft Client ID приложения Orbit Launcher.");
 		}
-		MSession mSession = await (await GetLoginHandlerAsync(settings.MicrosoftClientId)).AuthenticateInteractively();
-		SetSession(mSession);
-		return mSession;
+        await _refreshGate.WaitAsync();
+        try
+        {
+            var session = await (await GetLoginHandlerAsync(settings.MicrosoftClientId)).AuthenticateInteractively();
+            SetSession(session); return session;
+        }
+        finally { _refreshGate.Release(); }
 	}
 
 	public async Task<MSession> GetRequiredSessionAsync(LauncherSettings settings)
 	{
-		if (_microsoftSession != null)
+		await _refreshGate.WaitAsync();
+		try
 		{
-			return _microsoftSession;
+			if (_silentAuthentication is null && string.IsNullOrWhiteSpace(settings.MicrosoftClientId))
+				throw new InvalidOperationException("Сначала настройте вход в Microsoft-аккаунт Minecraft.");
+			// The library reuses valid tokens and refreshes expired credentials without opening a browser.
+			var session = _silentAuthentication is not null ? await _silentAuthentication()
+				: await (await GetLoginHandlerAsync(settings.MicrosoftClientId)).AuthenticateSilently();
+			SetSession(session);
+			return session;
 		}
-		return (await TryRestoreSessionAsync(settings)) ?? throw new InvalidOperationException("Сначала войдите в лицензионный Microsoft-аккаунт Minecraft.");
+		finally { _refreshGate.Release(); }
 	}
 
 	public async Task<string> GetRequiredAccessTokenAsync(LauncherSettings settings)
@@ -81,19 +93,19 @@ public sealed class AuthService
 
 	public async Task SignOutAsync(LauncherSettings settings)
 	{
-		_ = 1;
-		try
-		{
-			if (!string.IsNullOrWhiteSpace(settings.MicrosoftClientId))
+        await _refreshGate.WaitAsync();
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(settings.MicrosoftClientId))
 			{
 				await (await GetLoginHandlerAsync(settings.MicrosoftClientId)).Signout();
 			}
 		}
 		finally
 		{
-			ClearSession();
-		}
-	}
+            ClearSession(); _refreshGate.Release();
+        }
+    }
 
 	private async Task<JELoginHandler> GetLoginHandlerAsync(string clientId)
 	{

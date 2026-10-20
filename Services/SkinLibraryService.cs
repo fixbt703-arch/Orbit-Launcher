@@ -22,32 +22,25 @@ public sealed class SkinLibraryService
         if (!File.Exists(_index) && !File.Exists(_index + ".bak"))
             return [];
 
-        try
+        var items = AtomicJsonFile.Read<List<SkinLibraryItem>>(_index) ?? [];
+        var valid = new List<SkinLibraryItem>();
+        foreach (var item in items)
         {
-            var items = AtomicJsonFile.Read<List<SkinLibraryItem>>(_index) ?? [];
-            var valid = new List<SkinLibraryItem>();
-            foreach (var item in items)
+            try
             {
-                try
-                {
-                    if (item is null || string.IsNullOrWhiteSpace(item.FileName)) continue;
-                    item.FilePath = Path.Combine(_skins, Path.GetFileName(item.FileName));
-                    if (!File.Exists(item.FilePath))
-                        continue;
-                    var bytes = await File.ReadAllBytesAsync(item.FilePath);
-                    var bitmap = MinecraftSkinService.DecodeSkin(bytes);
-                    item.Variant = MinecraftSkinService.NormalizeVariant(item.Variant);
-                    item.Preview = CreateFrontPreview(bitmap, item.Variant == "slim");
-                    valid.Add(item);
-                }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException or FormatException) { }
+                if (item is null || string.IsNullOrWhiteSpace(item.FileName)) continue;
+                item.FilePath = Path.Combine(_skins, Path.GetFileName(item.FileName));
+                if (!File.Exists(item.FilePath))
+                    continue;
+                var bytes = await File.ReadAllBytesAsync(item.FilePath);
+                var bitmap = MinecraftSkinService.DecodeSkin(bytes);
+                item.Variant = MinecraftSkinService.NormalizeVariant(item.Variant);
+                item.Preview = CreateFrontPreview(bitmap, item.Variant == "slim");
+                valid.Add(item);
             }
-            return valid;
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException or FormatException) { }
         }
-        catch
-        {
-            return [];
-        }
+        return valid;
     }
 
     public async Task<SkinLibraryItem> ImportAsync(string sourcePath, string variant)

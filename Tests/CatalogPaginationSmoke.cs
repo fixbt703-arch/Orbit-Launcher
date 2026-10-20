@@ -28,7 +28,7 @@ internal static class CatalogPaginationSmoke
 
     private static void RunWindow()
     {
-        var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         foreach (var theme in new[] { "SoftIcons", "OrbitTheme" })
             app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri($"/OrbitLauncher;component/Themes/{theme}.xaml", UriKind.Relative) });
         Exception? failure = null;

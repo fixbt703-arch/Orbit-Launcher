@@ -41,6 +41,7 @@ public sealed class LauncherSettings
 	public bool ShowSnapshots { get; set; }
 
 	public bool OfflineModeEnabled { get; set; }
+	public bool ShowElySkinsForLicensedAccounts { get; set; } = true;
 
 	public string OfflinePlayerName { get; set; } = "OrbitPlayer";
 

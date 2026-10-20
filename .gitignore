@@ -29,3 +29,7 @@ tools/AutoSourceGitHub.README.txt
 *.suo
 *.log
 *.dmp
+ely-session.dat
+ely-session.dat.*
+ely-web/
+SkinBridge/.deps/

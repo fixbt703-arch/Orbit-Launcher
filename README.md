@@ -2,6 +2,11 @@
 
 WPF launcher for Windows with Fabric, Forge, NeoForge and Quilt instances, mod catalogs, mod compatibility repair, Microsoft accounts and skins.
 
+Orbit Connect is an optional, independent world-sharing integration using EasyTier
+and Terracotta with verified upstream downloads, route recovery, and a simple LAN
+invite flow. Enable it under Orbit Client in instance settings. See
+[usage, measured tests and exact compatibility](docs/ORBIT_CONNECT.md).
+
 ## Build
 
 Requires .NET SDK 8 for Windows. Run `build.bat` to replace `dist/OrbitLauncher.exe` with a self-contained Windows x64 executable.
@@ -9,7 +14,7 @@ Requires .NET SDK 8 for Windows. Run `build.bat` to replace `dist/OrbitLauncher.
 ## Source and release packaging
 
 Personal publication scripts are excluded from open source. Public snapshots use
-an explicit file allowlist and reject local credentials, account data, runtime
+an explicit file allowlist and reject local credentials, account data, game runtime
 files and EXE files. Microsoft application IDs are public configuration, not
 account credentials. Git history containing private configuration must be cleaned
 before the repository is made public; deleting a file in a later commit alone
@@ -39,16 +44,50 @@ For changes to the Minecraft mod, run `client-build.bat` first, then `build.bat`
 
 Run launcher checks with `dotnet run --project Tests/OrbitLauncher.Tests.csproj -c Release`.
 
-The launcher release is 1.2.1. See [RELEASE_AUDIT.md](RELEASE_AUDIT.md) for fixes,
+The launcher release is 1.5.5, bundling Orbit Client 0.18.7. The [final audit](docs/FINAL_AUDIT_2026-10-20.md) fixes NeoForge profile discovery and transient data-pack copy failures; all 126 non-Connect regression checks pass. Orbit Client text has no shadows, including HUD item counts, tooltips and native text fields hosted by the client UI. Stack Refill uses a normal predicted vanilla SWAP immediately after a successful last-block placement, without waiting for a round trip or delaying two extra ticks. Server inventory updates remain authoritative and are never filtered.
+
+Crosshair settings include a **Critical** tab using Minecraft's own sword textures and live HUD attack-indicator extraction. The native clock, 100% charge, target-alive and attack-range checks are preserved; enabling Orbit's custom crosshair replaces only the crosshair artwork rather than cancelling the entire native indicator. The compact default is 75% of vanilla size (12 logical pixels wide, half the previous 24px bar). Size options are 50/75/100%, with a separate vertical offset and optional target-only visibility. The original white sword denotes a charged attack; an optional green tint marks the vanilla falling-critical opportunity. Unsupported held items remain hidden. No attacks are automated and combat rules are unchanged. The indicator also works when Minecraft's own attack-indicator option is off, because the Orbit checkbox controls it locally without rewriting that option.
+
+See [RELEASE_AUDIT.md](RELEASE_AUDIT.md) for the preceding audit's fixes,
 verification and remaining limits. Async dialog regression checks run with
 `dotnet run --project Tests/OrbitLauncher.Tests.csproj -c Release -- --dialog-async-smoke`.
 Checks use temporary fixtures and do not require a Microsoft account. One component
 integration check is explicitly skipped when the author's protected Skin Layers 3D
 JAR is absent, as in the public source package; see `OrbitClient/libs/README.md`.
 
+## Ely.by skins
+
+**Unlicensed account** in Settings supports Ely.by sign-in, nicknames and skins.
+Upload and choose skins from the existing **Skins** tab. The token is protected
+with Windows DPAPI; passwords are not saved. See [ELY_SKINS.md](ELY_SKINS.md)
+for the website's Wear step, two-factor sign-in and game integration.
+
+Microsoft-authenticated players also see missing other-player skins from Ely.by
+by default, including in Vanilla. The Skins tab provides a switch. Your own skin,
+Microsoft sign-in and server authentication stay unchanged; the texture-only
+component and source are described in [SkinBridge/README.md](SkinBridge/README.md).
+
+## Automatic launcher updates
+
+The launcher checks public GitHub Releases at startup and every six hours while
+open. A newer stable release offers **Update now** or **Later**; Settings also
+contains a manual check. Downloads are cancellable, verified against SHA-256 and
+the installer's Windows version, then passed to the installer in the current
+launcher folder. Instances and accounts remain in their separate data directory.
+See [UPDATING.md](UPDATING.md) for release publishing requirements and verification.
+
 Catalog regression check: append three pages in both sources, scroll through the actual WPF cards and resize the window with `dotnet run --project Tests/OrbitLauncher.Tests.csproj -c Release -- --catalog-pagination`. The optional `--probe-curseforge` checks two pages and their icons against the live service using local build configuration.
 
-## Orbit Client 0.18.4
+## Network compatibility and Stack Refill
+
+Launcher and Minecraft components share a bounded HTTP/1.1 transport. Failed
+connections and file downloads retry with TLS 1.2; stalled bodies time out.
+Minecraft downloads use four workers and replace files only after size/hash
+verification. No Zapret services, driver settings, proxy settings or domain lists
+are changed. An incompatible Zapret strategy can still block traffic outside the
+launcher's control. See [NETWORK_REFILL_FIXES.md](NETWORK_REFILL_FIXES.md).
+
+## Orbit Client 0.18.5
 
 Hold My Items replaces Flair in the PvP filter. Enable it in Right Shift → PvP and hold **R** to inspect items using the original animation pack. Settings include main/off hand rendering, hand visibility, scale, XYZ position, motion intensity, 3D blocks, particles, camera motion and vanilla animations outside inspection. With that option enabled, idle, attacks, item use and their recovery use the native renderer; only holding R starts Hold My Items. Switching renderers clears Lua/model/camera state to prevent animation mixing. Q and F retain their normal actions. Existing Flair enabled state and the inspection key are migrated.
 

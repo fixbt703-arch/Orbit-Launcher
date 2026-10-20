@@ -34,7 +34,7 @@ internal static class LauncherDesignSmoke
     private static void Render(string output)
     {
         Directory.CreateDirectory(output);
-        var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         foreach (var theme in new[] { "SoftIcons", "OrbitTheme" })
             app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri($"/OrbitLauncher;component/Themes/{theme}.xaml", UriKind.Relative) });
         Exception? failure = null;

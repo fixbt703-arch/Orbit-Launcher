@@ -15,7 +15,7 @@ internal static class DialogAsyncSmoke
         Exception? failure = null;
         var thread = new Thread(() =>
         {
-            var app = new App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             foreach (var theme in new[] { "SoftIcons", "OrbitTheme" })
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri($"/OrbitLauncher;component/Themes/{theme}.xaml", UriKind.Relative) });
             app.DispatcherUnhandledException += (_, e) => { failure = e.Exception; e.Handled = true; app.Shutdown(); };

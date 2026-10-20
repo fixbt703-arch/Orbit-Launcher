@@ -43,8 +43,8 @@ final class HudColorScreen extends Screen {
         if(s.background)HudRenderer.panel(g,px,py,pw,ph,alpha|s.backgroundColor);
         if(s.hudBorder)OrbitTheme.outline(g,px,py,pw,ph,OrbitTheme.BORDER);
         if(s.accentBar)g.fill(px+3,py+7,px+5,py+ph-7,ClientConfig.accent(s));
-        int textAlpha=(int)(s.textOpacity*255)<<24;g.text(OrbitFonts.strong(),OrbitFonts.strong().plainSubstrByWidth(module.title(),pw-14),px+8,py+7,textAlpha|(s.accentTitle?ClientConfig.accent(s)&0xFFFFFF:s.textColor),s.shadow);
-        if(ph>=34)g.text(font,font.plainSubstrByWidth(tr("Пример HUD","HUD preview"),pw-14),px+8,py+21,textAlpha|s.textColor,s.shadow);
+        int textAlpha=(int)(s.textOpacity*255)<<24;g.text(OrbitFonts.strong(),OrbitFonts.strong().plainSubstrByWidth(module.title(),pw-14),px+8,py+7,textAlpha|(s.accentTitle?ClientConfig.accent(s)&0xFFFFFF:s.textColor),false);
+        if(ph>=34)g.text(font,font.plainSubstrByWidth(tr("Пример HUD","HUD preview"),pw-14),px+8,py+21,textAlpha|s.textColor,false);
     }
     private void pick(double mx,double my){if(drag==0){saturation=(float)Math.clamp((mx-x-12)/(leftW-1),0,1);value=1-(float)Math.clamp((my-bodyY)/(svHeight-1),0,1);}else if(drag==1)hue=(float)Math.clamp((mx-x-12)/(leftW-1),0,1);changed();}
     @Override public boolean mouseClicked(MouseButtonEvent e,boolean twice){if(e.button()==0&&e.x()>=x+12&&e.x()<x+12+leftW){if(e.y()>=bodyY&&e.y()<bodyY+svHeight)drag=0;else if(e.y()>=hueY&&e.y()<hueY+12)drag=1;if(drag>=0){pick(e.x(),e.y());return true;}}return super.mouseClicked(e,twice);}

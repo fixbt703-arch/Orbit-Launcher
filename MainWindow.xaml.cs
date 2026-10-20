@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.CodeDom.Compiler;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -36,13 +36,16 @@ public partial class MainWindow : Window
     public static readonly DependencyProperty IsDefaultBackgroundProperty = IsDefaultBackgroundPropertyKey.DependencyProperty;
     public bool IsDefaultBackground => (bool)GetValue(IsDefaultBackgroundProperty);
 
-	private readonly HttpClient _httpClient = new HttpClient();
+	private readonly HttpClient _httpClient = LauncherNetwork.CreateClient();
+	private readonly HttpClient _elyHttpClient = LauncherNetwork.CreateClient(redirects: false);
 
 	private readonly InstanceRepository _instanceRepository = new InstanceRepository();
 
 	private readonly SettingsService _settingsService = new SettingsService();
 
 	private readonly AuthService _authService;
+	private readonly ElyAccountService _elyAccounts;
+	private readonly ElySkinService _elySkins;
 
 	private readonly PlayerSkinService _playerSkinService;
 
@@ -62,13 +65,16 @@ public partial class MainWindow : Window
 
 	private CancellationTokenSource? _installedMetadataCancellation;
 
-	private readonly ConcurrentDictionary<string, (long Length, DateTime Modified, string Name, BitmapSource? Icon)> _installedMetadataCache = new ConcurrentDictionary<string, (long, DateTime, string, BitmapSource)>(StringComparer.OrdinalIgnoreCase);
+	private readonly ConcurrentDictionary<string, (long Length, DateTime Modified, string Name, BitmapSource? Icon)> _installedMetadataCache = new ConcurrentDictionary<string, (long, DateTime, string, BitmapSource?)>(StringComparer.OrdinalIgnoreCase);
 
 	private bool _populatingSettings;
 
 	private bool _skinPageLoaded;
 
 	private bool _skinOperationInProgress;
+    private bool _microsoftLoginInProgress;
+    private string? _skinStatusMessage;
+    private string? _skinStatusDetail;
 
 	private bool _skinLibraryLoaded;
 	private string? _accountHeadOwner;
@@ -110,6 +116,10 @@ public partial class MainWindow : Window
 		_httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("OrbitLauncher/1.2 (Minecraft desktop launcher)");
 		_httpClient.Timeout = TimeSpan.FromMinutes(10.0);
 		_authService = new AuthService(_httpClient);
+		_elyAccounts = new ElyAccountService(_elyHttpClient);
+		_elySkins = new ElySkinService(_elyHttpClient);
+		ElySkins.Initialize(_elyAccounts, _elySkins);
+		ElySkins.AccountChanged += async (_, _) => await UpdateAccountCardAsync();
 		_playerSkinService = new PlayerSkinService(_httpClient);
 		_minecraftSkinService = new MinecraftSkinService(_httpClient);
 		_minecraftService = new MinecraftService(_httpClient);
@@ -118,7 +128,8 @@ public partial class MainWindow : Window
 		base.Loaded += MainWindow_Loaded;
 		PreviewKeyDown += Launcher_KeyDown;
 		SystemParameters.StaticPropertyChanged += AppearancePreferenceChanged;
-		Closed += (_, _) => SystemParameters.StaticPropertyChanged -= AppearancePreferenceChanged;
+		Closed += (_, _) => { SystemParameters.StaticPropertyChanged -= AppearancePreferenceChanged; ElySkins.Dispose(); _elyHttpClient.Dispose(); };
+		InitializeUpdates();
 	}
 
 	private void LocalizedElement_Loaded(object sender, RoutedEventArgs e) => LocalizationService.Apply((DependencyObject)sender);
@@ -169,11 +180,13 @@ public partial class MainWindow : Window
 		PopulateSettingsControls();
 		await RefreshInstancesAsync();
 		await _authService.TryRestoreSessionAsync(_settings);
+		await _elyAccounts.RestoreAsync();
 		await UpdateAccountCardAsync();
 		LocalizationService.Apply(this);
 		if (_instanceRepository.LoadWarnings.Count > 0)
 			ShowStatus(LocalizationService.IsEnglish ? "Some instance definitions could not be read. Their files were kept."
 				: "Не удалось прочитать часть сборок. Их файлы сохранены.");
+		StartUpdateChecks();
 	}
 
 	private void PopulateSettingsControls()
@@ -187,6 +200,7 @@ public partial class MainWindow : Window
 			CloseOnLaunchCheck.IsChecked = _settings.CloseLauncherOnGameStart;
 			OfflinePlayerNameBox.Text = (string.IsNullOrWhiteSpace(_settings.OfflinePlayerName) ? "OrbitPlayer" : _settings.OfflinePlayerName);
 			OfflineModeCheck.IsChecked = _settings.OfflineModeEnabled;
+			LicensedElySkinsCheck.IsChecked = _settings.ShowElySkinsForLicensedAccounts;
 			OfflinePlayerNamePanel.IsEnabled = _settings.OfflineModeEnabled;
 			DependencyDownloadModeCombo.SelectedValue = NormalizeDependencyMode(_settings.ModDependencyDownloadMode);
 			AutoInstallFabricApiCheck.IsChecked = _settings.AutoInstallFabricApi;
@@ -277,7 +291,7 @@ public partial class MainWindow : Window
 			{
 				await SetInstanceIconAsync(created, dialog.SelectedIconPath);
 			}
-			string fabricApiError = null;
+			string? fabricApiError = null;
 			if (created.OrbitClientEnabled)
 			{
 				fabricApiError = await InstallOrbitClientAsync(created);
@@ -286,7 +300,7 @@ public partial class MainWindow : Window
 			{
 				fabricApiError = await InstallFabricApiAsync(created);
 			}
-			await RefreshInstancesAsync(created.Id);
+            await RefreshInstancesAsync(created.Id);
 			string text = (created.OrbitClientEnabled ? "Orbit Client" : "Fabric API");
 			ShowStatus((fabricApiError == null) ? ("Сборка «" + created.Name + "» создана.") : $"Сборка «{created.Name}» создана без {text}.");
 			if (fabricApiError != null)
@@ -394,7 +408,7 @@ public partial class MainWindow : Window
 
 	private async void ContextLaunch_Click(object sender, RoutedEventArgs e)
 	{
-		GameInstance gameInstance = ContextInstance(sender);
+		GameInstance? gameInstance = ContextInstance(sender);
 		if (gameInstance != null)
 		{
 			await LaunchInstanceAsync(gameInstance);
@@ -435,12 +449,13 @@ public partial class MainWindow : Window
 		});
 		try
 		{
-			MSession mSession = ((!_settings.OfflineModeEnabled) ? (await _authService.GetRequiredSessionAsync(_settings)) : MSession.CreateOfflineSession(_settings.OfflinePlayerName));
+			bool useEly = _settings.OfflineModeEnabled && _elyAccounts.IsSignedIn;
+			bool showElySkins = !_settings.OfflineModeEnabled && _settings.ShowElySkinsForLicensedAccounts;
+			MSession mSession = useEly ? await _elyAccounts.GetRequiredSessionAsync(_launchCancellation.Token) :
+				(!_settings.OfflineModeEnabled ? await _authService.GetRequiredSessionAsync(_settings) : MSession.CreateOfflineSession(_settings.OfflinePlayerName));
 			MSession session = mSession;
 			await UpdateAccountCardAsync();
-			LaunchResult result = await _minecraftService.InstallAndLaunchAsync(instance, session, _settings, progress, delegate
-			{
-			}, _launchCancellation.Token);
+			LaunchResult result = await _minecraftService.InstallAndLaunchAsync(instance, session, _settings, progress, null, _launchCancellation.Token, useEly, showElySkins);
 			instance.LaunchVersionId = result.VersionId;
 			instance.LastPlayedAt = DateTime.UtcNow;
 			await _instanceRepository.SaveAsync(instance);
@@ -461,6 +476,7 @@ public partial class MainWindow : Window
 		catch (Exception ex2)
 		{
 			download.Status = LocalizationService.Translate("Ошибка");
+			if (ex2 is ElySessionExpiredException) await UpdateAccountCardAsync();
 			ShowError("Не удалось запустить Minecraft", ex2);
 		}
 		finally
@@ -478,7 +494,7 @@ public partial class MainWindow : Window
 
 	private async void ContextEdit_Click(object sender, RoutedEventArgs e)
 	{
-		GameInstance instance = ContextInstance(sender);
+		GameInstance? instance = ContextInstance(sender);
 		if (instance != null && new EditInstanceDialog(_httpClient, _settings, instance)
 		{
 			Owner = this
@@ -491,7 +507,7 @@ public partial class MainWindow : Window
 
 	private async void ContextRename_Click(object sender, RoutedEventArgs e)
 	{
-		GameInstance instance = ContextInstance(sender);
+		GameInstance? instance = ContextInstance(sender);
 		if (instance != null)
 		{
 			TextPromptDialog textPromptDialog = new TextPromptDialog("Переименовать сборку", "Новое название", instance.Name)
@@ -509,7 +525,7 @@ public partial class MainWindow : Window
 
 	private async void ContextIcon_Click(object sender, RoutedEventArgs e)
 	{
-		GameInstance instance = ContextInstance(sender);
+		GameInstance? instance = ContextInstance(sender);
 		if (instance != null)
 		{
 			OpenFileDialog openFileDialog = new OpenFileDialog
@@ -524,18 +540,18 @@ public partial class MainWindow : Window
 		}
 	}
 
-	private void ContextMods_Click(object sender, RoutedEventArgs e)
+	private async void ContextMods_Click(object sender, RoutedEventArgs e)
 	{
-		GameInstance gameInstance = ContextInstance(sender);
+		GameInstance? gameInstance = ContextInstance(sender);
 		if (gameInstance != null)
 		{
-			OpenModBrowser(gameInstance);
+			await OpenModBrowserAsync(gameInstance);
 		}
 	}
 
 	private async void ContextDuplicate_Click(object sender, RoutedEventArgs e)
 	{
-		GameInstance gameInstance = ContextInstance(sender);
+		GameInstance? gameInstance = ContextInstance(sender);
 		if (gameInstance == null)
 		{
 			return;
@@ -553,7 +569,7 @@ public partial class MainWindow : Window
 
 	private async void ContextExport_Click(object sender, RoutedEventArgs e)
 	{
-		GameInstance gameInstance = ContextInstance(sender);
+		GameInstance? gameInstance = ContextInstance(sender);
 		if (gameInstance == null)
 		{
 			return;
@@ -580,16 +596,26 @@ public partial class MainWindow : Window
 
 	private void ContextFolder_Click(object sender, RoutedEventArgs e)
 	{
-		GameInstance gameInstance = ContextInstance(sender);
+		GameInstance? gameInstance = ContextInstance(sender);
 		if (gameInstance != null)
 		{
 			OpenFolder(gameInstance.DirectoryPath);
 		}
 	}
 
+    private void ContextLaunchLog_Click(object sender, RoutedEventArgs e)
+    {
+        if (ContextInstance(sender) is not { } instance) return;
+        var directory = System.IO.Path.Combine(instance.DirectoryPath, ".orbit", "logs");
+        var latest = Directory.Exists(directory) ? Directory.EnumerateFiles(directory, "launch-*.log").OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault() : null;
+        if (latest is null) { ShowStatus("Журнал появится после первого запуска этой сборки."); return; }
+        var start = new ProcessStartInfo("explorer.exe") { UseShellExecute = true };
+        start.ArgumentList.Add("/select,"); start.ArgumentList.Add(latest); Process.Start(start);
+    }
+
 	private async void ContextDelete_Click(object sender, RoutedEventArgs e)
 	{
-		GameInstance instance = ContextInstance(sender);
+		GameInstance? instance = ContextInstance(sender);
 		if (instance == null || LocalizationService.Show(this, "Удалить сборку «" + instance.Name + "» вместе с её мирами, модами и настройками?\n\nЭто действие нельзя отменить.", "Удаление сборки", MessageBoxButton.YesNo, MessageBoxImage.Exclamation) != MessageBoxResult.Yes)
 		{
 			return;
@@ -630,7 +656,7 @@ public partial class MainWindow : Window
 	{
 		if (base.IsLoaded && sender is RadioButton { Tag: var tag })
 		{
-			string text = tag?.ToString();
+			string? text = tag?.ToString();
 			LibraryPage.Visibility = ((!(text == "Library")) ? Visibility.Collapsed : Visibility.Visible);
 			ModsPage.Visibility = ((!(text == "Mods")) ? Visibility.Collapsed : Visibility.Visible);
 			SkinsPage.Visibility = ((!(text == "Skins")) ? Visibility.Collapsed : Visibility.Visible);
@@ -713,7 +739,7 @@ public partial class MainWindow : Window
 		{
 			FileInfo fileInfo = new FileInfo(file);
 			string relative = System.IO.Path.GetRelativePath(gameInstance.DirectoryPath, file);
-			InstalledContentRecord installedContentRecord = readOnlyList.FirstOrDefault((InstalledContentRecord item) => string.Equals(item.RelativePath, relative, StringComparison.OrdinalIgnoreCase) || (file.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase) && string.Equals(item.RelativePath + ".disabled", relative, StringComparison.OrdinalIgnoreCase)));
+			InstalledContentRecord? installedContentRecord = readOnlyList.FirstOrDefault((InstalledContentRecord item) => string.Equals(item.RelativePath, relative, StringComparison.OrdinalIgnoreCase) || (file.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase) && string.Equals(item.RelativePath + ".disabled", relative, StringComparison.OrdinalIgnoreCase)));
 			_allInstalledContent.Add(new InstalledMod
 			{
 				Name = ((!string.IsNullOrWhiteSpace(installedContentRecord?.Title)) ? installedContentRecord.Title : fileInfo.Name.Replace(".disabled", string.Empty, StringComparison.OrdinalIgnoreCase)),
@@ -728,7 +754,7 @@ public partial class MainWindow : Window
 			});
 		}
 		ApplyInstalledContentView();
-		PopulateInstalledMetadataAsync(gameInstance, readOnlyList, _installedMetadataCancellation.Token);
+		_ = PopulateInstalledMetadataAsync(gameInstance, readOnlyList, _installedMetadataCancellation.Token);
 	}
 
 	private async Task PopulateInstalledMetadataAsync(GameInstance instance, IReadOnlyList<InstalledContentRecord> registry, CancellationToken token)
@@ -742,7 +768,7 @@ public partial class MainWindow : Window
 				try
 				{
 					(string Name, BitmapSource? Icon) metadata;
-					if (_installedMetadataCache.TryGetValue(item.FullPath, out (long, DateTime, string, BitmapSource) value) && value.Item1 == item.SizeBytes && value.Item2 == item.ModifiedAt)
+					if (_installedMetadataCache.TryGetValue(item.FullPath, out var value) && value.Item1 == item.SizeBytes && value.Item2 == item.ModifiedAt)
 					{
 						metadata = (Name: value.Item3, Icon: value.Item4);
 					}
@@ -757,7 +783,7 @@ public partial class MainWindow : Window
 					if (!token.IsCancellationRequested)
 					{
 						string relative = System.IO.Path.GetRelativePath(instance.DirectoryPath, item.FullPath);
-						InstalledContentRecord record = registry.FirstOrDefault((InstalledContentRecord installedContentRecord) => string.Equals(installedContentRecord.RelativePath, relative, StringComparison.OrdinalIgnoreCase) || (item.FullPath.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase) && string.Equals(installedContentRecord.RelativePath + ".disabled", relative, StringComparison.OrdinalIgnoreCase)));
+						InstalledContentRecord? record = registry.FirstOrDefault((InstalledContentRecord installedContentRecord) => string.Equals(installedContentRecord.RelativePath, relative, StringComparison.OrdinalIgnoreCase) || (item.FullPath.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase) && string.Equals(installedContentRecord.RelativePath + ".disabled", relative, StringComparison.OrdinalIgnoreCase)));
 						await base.Dispatcher.InvokeAsync(delegate
 						{
 							if (!string.IsNullOrWhiteSpace(record?.Title))
@@ -776,7 +802,7 @@ public partial class MainWindow : Window
 						}, DispatcherPriority.Background, token);
 						if (metadata.Icon == null && !string.IsNullOrWhiteSpace(record?.IconUrl))
 						{
-							BitmapSource icon = await _installedIconLoader.GetAsync(record.IconUrl, 96, token);
+							BitmapSource? icon = await _installedIconLoader.GetAsync(record.IconUrl, 96, token);
 							if (!token.IsCancellationRequested && icon != null)
 							{
 								await base.Dispatcher.InvokeAsync(() => item.Icon = icon, DispatcherPriority.Background, token);
@@ -892,11 +918,11 @@ public partial class MainWindow : Window
 		return true;
 	}
 
-	private void BrowseModsButton_Click(object sender, RoutedEventArgs e)
+	private async void BrowseModsButton_Click(object sender, RoutedEventArgs e)
 	{
 		if (ModsInstanceCombo.SelectedItem is GameInstance instance)
 		{
-			OpenModBrowser(instance);
+			await OpenModBrowserAsync(instance);
 		}
 		else
 		{
@@ -904,7 +930,7 @@ public partial class MainWindow : Window
 		}
 	}
 
-	private void RepairModsButton_Click(object sender, RoutedEventArgs e)
+	private async void RepairModsButton_Click(object sender, RoutedEventArgs e)
 	{
 		if (!(ModsInstanceCombo.SelectedItem is GameInstance gameInstance))
 		{
@@ -915,16 +941,16 @@ public partial class MainWindow : Window
 		repairModsWindow.Owner = this;
 		repairModsWindow.ShowDialog();
 		RefreshInstalledMods();
-		RefreshInstancesAsync(gameInstance.Id);
+		await RefreshInstancesAsync(gameInstance.Id);
 	}
 
-	private void OpenModBrowser(GameInstance instance)
+	private async Task OpenModBrowserAsync(GameInstance instance)
 	{
 		ModBrowserWindow modBrowserWindow = new ModBrowserWindow(_httpClient, instance, Downloads, _settings.ModrinthApiBase, _settings.ModDependencyDownloadMode, _settings.CurseForgeApiBase, _settings.CurseForgeApiKey);
 		modBrowserWindow.Owner = this;
 		modBrowserWindow.ShowDialog();
 		RefreshInstalledMods();
-		RefreshInstancesAsync(instance.Id);
+		await RefreshInstancesAsync(instance.Id);
 	}
 
 	private void OpenModsFolderButton_Click(object sender, RoutedEventArgs e)
@@ -1151,12 +1177,14 @@ public partial class MainWindow : Window
 	}
 
 	private async void MicrosoftLoginButton_Click(object sender, RoutedEventArgs e)
-	{
+    {
+        if (_microsoftLoginInProgress) return;
 		if (string.IsNullOrWhiteSpace(_settings.MicrosoftClientId))
 		{
 			LocalizationService.Show(this, "Microsoft Client ID не задан в конфигурации этой сборки. Обратитесь к автору лаунчера.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Asterisk);
 			return;
 		}
+        _microsoftLoginInProgress = true; SkinMicrosoftLoginButton.IsEnabled = false;
 		GateLoginButton.IsEnabled = false;
 		SettingsLoginButton.IsEnabled = false;
 		GateLoginButton.Content = LocalizationService.Translate("Открываем Microsoft…");
@@ -1178,6 +1206,7 @@ public partial class MainWindow : Window
 		}
 		finally
 		{
+            _microsoftLoginInProgress = false; SkinMicrosoftLoginButton.IsEnabled = true;
 			GateLoginButton.IsEnabled = true;
 			SettingsLoginButton.IsEnabled = true;
 			GateLoginButton.Content = LocalizationService.Translate("Продолжить с Microsoft");
@@ -1211,13 +1240,14 @@ public partial class MainWindow : Window
 			string text = OfflinePlayerNameBox.Text.Trim();
 			if (OfflineModeCheck.IsChecked == true && !Regex.IsMatch(text, "^[A-Za-z0-9_]{3,16}$"))
 			{
-				throw new InvalidOperationException("Имя офлайн-игрока должно содержать от 3 до 16 латинских букв, цифр или знаков подчёркивания.");
+				throw new InvalidOperationException("Ник игрока должен содержать от 3 до 16 латинских букв, цифр или знаков подчёркивания.");
 			}
 			_settings.DefaultMinimumRamMb = result;
 			_settings.DefaultMaximumRamMb = result2;
 			_settings.ShowSnapshots = ShowSnapshotsCheck.IsChecked == true;
 			_settings.CloseLauncherOnGameStart = CloseOnLaunchCheck.IsChecked == true;
 			_settings.OfflineModeEnabled = OfflineModeCheck.IsChecked == true;
+			_settings.ShowElySkinsForLicensedAccounts = LicensedElySkinsCheck.IsChecked == true;
 			_settings.OfflinePlayerName = (string.IsNullOrWhiteSpace(text) ? "OrbitPlayer" : text);
 			_settings.ModDependencyDownloadMode = NormalizeDependencyMode((DependencyDownloadModeCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString());
 			_settings.AutoInstallFabricApi = AutoInstallFabricApiCheck.IsChecked == true;
@@ -1252,31 +1282,11 @@ public partial class MainWindow : Window
 		return "en";
 	}
 
-	private static string NormalizeLauncherBackground(string? value)
-	{
-		bool flag;
-		switch (value?.ToLowerInvariant())
-		{
-		case "space":
-		case "water":
-		case "fight":
-		case "ghast":
-		case "forest":
-		case "nether":
-		case "village":
-		case "cave":
-			flag = true;
-			break;
-		default:
-			flag = false;
-			break;
-		}
-		if (!flag)
-		{
-			return "default";
-		}
-		return value.ToLowerInvariant();
-	}
+    private static string NormalizeLauncherBackground(string? value) => value?.ToLowerInvariant() switch
+    {
+        "space" or "water" or "fight" or "ghast" or "forest" or "nether" or "village" or "cave" => value.ToLowerInvariant(),
+        _ => "default"
+    };
 
 	private static int NormalizePercent(int value, int fallback)
 	{
@@ -1431,14 +1441,22 @@ public partial class MainWindow : Window
 		if (SkinsSignInPanel != null && SkinsContentPanel != null)
 		{
 			bool isSignedIn = _authService.IsSignedIn;
-			SkinsSignInPanel.Visibility = (isSignedIn ? Visibility.Collapsed : Visibility.Visible);
-			SkinsContentPanel.Visibility = ((!isSignedIn) ? Visibility.Collapsed : Visibility.Visible);
+			SkinsSignInPanel.Visibility = !isSignedIn && !_settings.OfflineModeEnabled ? Visibility.Visible : Visibility.Collapsed;
+			SkinsContentPanel.Visibility = isSignedIn && !_settings.OfflineModeEnabled ? Visibility.Visible : Visibility.Collapsed;
+			ElySkins.Visibility = _settings.OfflineModeEnabled ? Visibility.Visible : Visibility.Collapsed;
+            SkinPageSubtitle.Text = LocalizationService.Translate(_settings.OfflineModeEnabled ? "Скин и ник вашего аккаунта Ely.by" : "Сохраните PNG и примените скин к аккаунту Minecraft");
+            SkinAccountTitle.Text = _authService.DisplayName + " · Microsoft";
+            UpdateSkinLibraryState();
+            if (SkinStatusPanel.Visibility == Visibility.Visible) RenderSkinStatus();
+			ElySkins.UpdateState();
+			LicensedElySkinsCheck.IsChecked = _settings.ShowElySkinsForLicensedAccounts;
 		}
 	}
 
 	private async Task RefreshSkinPageAsync(bool force = true)
 	{
 		UpdateSkinAccountState();
+		if (_settings.OfflineModeEnabled) { if (force) await ElySkins.RefreshAsync(); return; }
 		if (!_authService.IsSignedIn || _skinOperationInProgress || (!force && _skinPageLoaded))
 		{
 			return;
@@ -1451,12 +1469,14 @@ public partial class MainWindow : Window
 				_skinLibraryLoaded = false;
 			}
 			await EnsureSkinLibraryLoadedAsync();
-			_skinPageLoaded = true;
-		}
-		catch (Exception ex)
+            _skinPageLoaded = true;
+            SkinStatusPanel.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex)
 		{
 			_skinPageLoaded = false;
-			ShowError("Не удалось загрузить скин", ex);
+            ShowSkinStatus("Не удалось загрузить библиотеку. Файлы скинов сохранены.", error: true, detail: ex.Message);
+            SkinRetryButton.Visibility = Visibility.Visible;
 		}
 		finally
 		{
@@ -1466,11 +1486,33 @@ public partial class MainWindow : Window
 
 	private void SetSkinBusy(bool busy)
 	{
-		_skinOperationInProgress = busy;
-	}
+        _skinOperationInProgress = busy;
+        AddSkinButton.IsEnabled = SkinLibraryItems.IsEnabled = !busy;
+        SkinOperationProgress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        if (busy) ShowSkinStatus(LocalizationService.Translate("Подготовка скинов…"));
+    }
+
+    private void ShowSkinStatus(string message, bool error = false, string? detail = null)
+    {
+        _skinStatusMessage = message; _skinStatusDetail = detail;
+        SkinStatusPanel.Visibility = Visibility.Visible;
+        RenderSkinStatus();
+        SkinOperationText.SetResourceReference(TextBlock.ForegroundProperty, error ? "DangerBrush" : "TextBrush");
+        SkinRetryButton.Visibility = Visibility.Collapsed;
+    }
+
+    private void RenderSkinStatus() => SkinOperationText.Text = LocalizationService.Translate(_skinStatusMessage)
+        + (string.IsNullOrEmpty(_skinStatusDetail) ? "" : " " + LocalizationService.TranslateMessage(_skinStatusDetail));
+
+    private async void SkinRetry_Click(object sender, RoutedEventArgs e) => await RefreshSkinPageAsync();
 
 	private async void ChooseSkinButton_Click(object sender, RoutedEventArgs e)
 	{
+        if (_skinOperationInProgress) return;
+        if (_settings.OfflineModeEnabled) { await ElySkins.ChooseAndUploadAsync(); return; }
+        if (!_authService.IsSignedIn) { await RefreshSkinPageAsync(); return; }
+        try { await EnsureSkinLibraryLoadedAsync(); }
+        catch (Exception ex) { ShowSkinStatus("Не удалось загрузить библиотеку. Файлы скинов сохранены.", true, ex.Message); SkinRetryButton.Visibility = Visibility.Visible; return; }
 		NewSkinDialog dialog = new NewSkinDialog
 		{
 			Owner = this
@@ -1483,8 +1525,8 @@ public partial class MainWindow : Window
 		{
 			SkinLibraryItem item = await _skinLibraryService.ImportAsync(dialog.SkinFilePath, dialog.SkinVariant);
 			item.Name = dialog.SkinName;
-			SkinLibrary.Add(item);
-			await _skinLibraryService.SaveAsync(SkinLibrary);
+            await _skinLibraryService.SaveAsync(SkinLibrary.Concat(new[] { item }));
+            SkinLibrary.Add(item);
 			UpdateSkinLibraryState();
 			if (dialog.ApplyAfterSave)
 			{
@@ -1492,7 +1534,7 @@ public partial class MainWindow : Window
 			}
 			else
 			{
-				ShowStatus("Скин сохранён в библиотеке.");
+				ShowSkinStatus(LocalizationService.Translate("Скин сохранён в библиотеке."));
 			}
 		}
 		catch (Exception ex)
@@ -1542,8 +1584,8 @@ public partial class MainWindow : Window
 		}
 		try
 		{
-			SkinLibrary.Remove(skinLibraryItem);
-			await _skinLibraryService.DeleteAsync(skinLibraryItem, SkinLibrary);
+            await _skinLibraryService.DeleteAsync(skinLibraryItem, SkinLibrary.Where(item => item.Id != skinLibraryItem.Id));
+            SkinLibrary.Remove(skinLibraryItem);
 			UpdateSkinLibraryState();
 		}
 		catch (Exception ex)
@@ -1554,6 +1596,7 @@ public partial class MainWindow : Window
 
 	private async Task ApplyLibrarySkinAsync(SkinLibraryItem item)
 	{
+		if (_settings.OfflineModeEnabled) { SkinsNav.IsChecked = true; return; }
 		if (_skinOperationInProgress || !File.Exists(item.FilePath))
 		{
 			return;
@@ -1561,17 +1604,18 @@ public partial class MainWindow : Window
 		SetSkinBusy(busy: true);
 		try
 		{
+            ShowSkinStatus(LocalizationService.Translate("Применяем скин…"));
 			byte[] bytes = await File.ReadAllBytesAsync(item.FilePath);
 			string accessToken = await _authService.GetRequiredAccessTokenAsync(_settings);
 			await _minecraftSkinService.UploadAsync(accessToken, bytes, item.Name + ".png", item.Variant);
 			_playerSkinService.RememberSkin(_authService.DisplayName, bytes);
 			_skinPageLoaded = true;
-			ShowStatus("Скин успешно применён к аккаунту Minecraft.");
+            ShowSkinStatus(LocalizationService.Translate("Скин применён к аккаунту Minecraft. Перезапустите игру, чтобы увидеть изменения."));
 			await UpdateAccountCardAsync();
 		}
 		catch (Exception ex)
 		{
-			ShowError("Не удалось применить скин", ex);
+            ShowSkinStatus("Не удалось применить скин. Он сохранён в библиотеке — повторите попытку.", error: true, detail: ex.Message);
 		}
 		finally
 		{
@@ -1584,12 +1628,14 @@ public partial class MainWindow : Window
 		int revision = ++_accountHeadRevision;
 		bool isSignedIn = _authService.IsSignedIn;
 		bool offlineModeEnabled = _settings.OfflineModeEnabled;
-		string text = (offlineModeEnabled ? _settings.OfflinePlayerName : LocalizationService.Translate(_authService.DisplayName));
+		OfflinePlayerNamePanel.Visibility = offlineModeEnabled && _elyAccounts.IsSignedIn ? Visibility.Collapsed : Visibility.Visible;
+		if (offlineModeEnabled) { await UpdateElyAccountCardAsync(revision); return; }
+		string text = LocalizationService.Translate(_authService.DisplayName);
 		AccountNameText.Text = text;
 		SettingsAccountNameText.Text = text;
-		AccountModeText.Text = LocalizationService.Translate(offlineModeEnabled ? "Офлайн • тестовый режим" : (isSignedIn ? "Microsoft • Minecraft" : "Аккаунт не подключён"));
-		SettingsAccountHintText.Text = LocalizationService.Translate(offlineModeEnabled ? "Офлайн-режим включён в настройках" : (isSignedIn ? "Лицензионная сессия Microsoft активна" : "Для запуска требуется Microsoft-аккаунт"));
-		AccountStatusDot.Fill = (offlineModeEnabled ? new SolidColorBrush(Color.FromRgb(245, 166, 35)) : (isSignedIn ? new SolidColorBrush(Color.FromRgb(61, 220, 164)) : new SolidColorBrush(Color.FromRgb(94, 102, 123))));
+		AccountModeText.Text = LocalizationService.Translate(isSignedIn ? "Microsoft • Minecraft" : "Аккаунт не подключён");
+		SettingsAccountHintText.Text = LocalizationService.Translate(isSignedIn ? "Лицензионная сессия Microsoft активна" : "Для запуска требуется Microsoft-аккаунт");
+		AccountStatusDot.Fill = isSignedIn ? new SolidColorBrush(Color.FromRgb(61, 220, 164)) : new SolidColorBrush(Color.FromRgb(94, 102, 123));
 		SettingsLoginButton.Visibility = (isSignedIn ? Visibility.Collapsed : Visibility.Visible);
 		SignOutButton.Visibility = ((!isSignedIn) ? Visibility.Collapsed : Visibility.Visible);
 		GateLoginButton.Visibility = (isSignedIn ? Visibility.Collapsed : Visibility.Visible);
@@ -1675,7 +1721,7 @@ public partial class MainWindow : Window
 			if (!Regex.IsMatch(text, "^[A-Za-z0-9_]{3,16}$"))
 			{
 				OfflinePlayerNameBox.Text = _settings.OfflinePlayerName;
-				LocalizationService.Show(this, "Имя офлайн-игрока должно содержать от 3 до 16 латинских букв, цифр или знаков подчёркивания.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+				LocalizationService.Show(this, "Ник игрока должен содержать от 3 до 16 латинских букв, цифр или знаков подчёркивания.", "Orbit Launcher", MessageBoxButton.OK, MessageBoxImage.Exclamation);
 			}
 			else
 			{

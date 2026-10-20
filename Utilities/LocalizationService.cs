@@ -14,6 +14,97 @@ public static class LocalizationService
 {
 	private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>(StringComparer.Ordinal)
 	{
+        ["Игра с друзьями в своём мире · без аренды сервера"] = "Play in your own world with friends · no server rental",
+        ["Подключиться"] = "Connect",
+        ["Подключено"] = "Connected",
+        ["Отключить"] = "Disconnect",
+        ["Подключение…"] = "Connecting…",
+        ["Не удалось обновить состояние подключения. Повторяем проверку…"] = "Could not update connection status. Retrying…",
+        ["Играйте вместе в своём мире"] = "Share your world with friends",
+        ["Ваш мир"] = "Your world",
+        ["Запустите сборку, зайдите в мир и нажмите «Открыть для сети». Приглашение появится здесь автоматически."] = "Launch this instance, enter a world and select Open to LAN. Your invitation will appear here automatically.",
+        ["Приглашение в ваш мир"] = "Your world invitation",
+        ["Скопировать приглашение"] = "Copy invitation",
+        ["Указать LAN-порт вручную"] = "Enter LAN port manually",
+        ["LAN-порт Minecraft"] = "Minecraft LAN port",
+        ["Открыть мир"] = "Share world",
+        ["Мир друга"] = "Friend’s world",
+        ["Вставьте приглашение Orbit Connect или код Terracotta."] = "Paste an Orbit Connect invitation or a Terracotta code.",
+        ["Приглашение друга"] = "Friend’s invitation",
+        ["Закрытие окна не прерывает игру"] = "Closing this window keeps your game connected",
+        ["Откройте мир для сети или вставьте приглашение друга."] = "Open a world to LAN or paste your friend’s invitation.",
+        ["Включите Orbit Connect в параметрах сборки и перезапустите Minecraft."] = "Enable Orbit Connect in instance settings and restart Minecraft.",
+        ["Не удалось связаться с Orbit Connect. Закройте и откройте панель для повтора."] = "Could not reach Orbit Connect. Close and reopen this panel to retry.",
+        ["Введите LAN-порт, показанный в чате Minecraft."] = "Enter the LAN port shown in Minecraft chat.",
+        ["Скопировано."] = "Copied.",
+        ["Буфер обмена занят. Выделите текст и нажмите Ctrl+C."] = "Clipboard is busy. Select the text and press Ctrl+C.",
+        ["Скопировать адрес"] = "Copy address",
+        ["Мир открыт"] = "World shared",
+        ["Восстанавливаем маршрут…"] = "Recovering connection…",
+        ["Не удалось подключиться"] = "Could not connect",
+        ["Подготавливаем подключение…"] = "Preparing connection…",
+        ["Готовим подключение к миру…"] = "Preparing your world…",
+        ["Готовим резервное подключение…"] = "Preparing backup connection…",
+        ["Мир открыт через Terracotta. Скопируйте приглашение."] = "World shared through Terracotta. Copy your invitation.",
+        ["Мир открыт. Резерв Terracotta недоступен; резервные узлы EasyTier активны."] = "World shared. Terracotta is unavailable; EasyTier backup nodes are active.",
+        ["Мир открыт. Резерв Terracotta готов."] = "World shared. Terracotta backup is ready.",
+        ["Ищем путь к миру друга…"] = "Finding a route to your friend’s world…",
+        ["Мир доступен. Подключитесь к адресу ниже в Minecraft."] = "World available. Join the address below in Minecraft.",
+        ["Подключаемся через Terracotta…"] = "Connecting through Terracotta…",
+        ["Мир доступен через Terracotta."] = "World available through Terracotta.",
+        ["Мир закрыт. Откройте другой мир для сети."] = "World closed. Open another world to LAN.",
+        ["Маршрут восстановлен."] = "Connection recovered.",
+        ["Основной маршрут недоступен. Резерв Terracotta готов."] = "Primary route unavailable. Terracotta backup is ready.",
+        ["Сетевой компонент остановился. Повторите подключение."] = "Network component stopped. Reconnect to retry.",
+        ["Резервное соединение остановилось. Повторите подключение."] = "Backup connection stopped. Reconnect to retry.",
+        ["Резерв готов. Если Minecraft отключился, войдите в мир повторно."] = "Backup ready. If Minecraft disconnected, rejoin the world.",
+        ["Подключение закрыто."] = "Connection closed.",
+        ["Сначала отключите текущее соединение Orbit Connect."] = "Disconnect the current Orbit Connect session first.",
+        ["Этот порт не принадлежит запущенной игре."] = "This port does not belong to the running game.",
+        ["Подключение заняло слишком много времени. Попробуйте ещё раз."] = "Connection timed out. Please try again.",
+        ["Не удалось найти доступный маршрут. Проверьте подключение и повторите попытку."] = "No route available. Check your connection and retry.",
+        ["Некорректное приглашение Orbit Connect. Скопируйте код целиком."] = "Invalid Orbit Connect invitation. Copy the entire code.",
+        ["PvP HUD и оптимизация · Right Shift"] = "PvP HUD and performance · Right Shift",
+		["Выберите образ для своего аккаунта Minecraft"] = "Choose a look for your Minecraft account",
+		["Скин и ник вашего аккаунта Ely.by"] = "Your Ely.by skin and player name",
+		["Сохраните PNG и примените скин к аккаунту Minecraft"] = "Save a PNG and apply it to your Minecraft account",
+		["Где вы играете?"] = "Where do you play?",
+		["Подключите аккаунт, к которому хотите применить скин."] = "Connect the account you want to apply a skin to.",
+		["Для владельцев Minecraft Java Edition. Сохранённые скины доступны в вашей библиотеке."] = "For Minecraft Java Edition owners. Saved skins are available in your library.",
+		["Для аккаунта без лицензии. Используйте ник Ely.by и выбирайте скин на сайте."] = "For an unlicensed account. Use your Ely.by name and choose a skin on the website.",
+		["Подключить Ely.by"] = "Connect Ely.by",
+		["Ваш скин Minecraft сохраняется. Изменение действует со следующего запуска игры."] = "Your Minecraft skin stays unchanged. This setting takes effect on the next game launch.",
+		["Библиотека скинов"] = "Skin library",
+		["Добавить PNG"] = "Add PNG",
+		["Повторить загрузку библиотеки"] = "Reload library",
+		["Применение скина"] = "Applying skin",
+		["Нажмите «Добавить PNG», чтобы сохранить первый скин. После сохранения его можно применить к аккаунту Microsoft."] = "Select Add PNG to save your first skin. You can then apply it to your Microsoft account.",
+		["Аккаунт Ely.by"] = "Ely.by account",
+		["Предпросмотр головы текущего скина"] = "Preview of the current skin’s head",
+		["Выбрать на Ely.by"] = "Choose on Ely.by",
+		["PNG · 64 × 64 пикселя · до 192 КБ"] = "PNG · 64 × 64 pixels · up to 192 KB",
+		["Как применить скин"] = "How to apply a skin",
+		["Выберите образ на сайте Ely.by и нажмите «Надеть». Затем вернитесь сюда и запустите Minecraft заново."] = "Choose a skin on Ely.by and select Wear. Then return here and restart Minecraft.",
+		["Сайт может попросить отдельный вход в тот же аккаунт Ely.by."] = "The website may ask you to sign in separately to the same Ely.by account.",
+		["Подготовка скинов…"] = "Preparing skins…",
+		["Не удалось загрузить библиотеку. Файлы скинов сохранены."] = "Could not load the library. Your skin files were kept.",
+		["Скин применён к аккаунту Minecraft. Перезапустите игру, чтобы увидеть изменения."] = "Skin applied to your Minecraft account. Restart the game to see the change.",
+		["Не удалось применить скин. Он сохранён в библиотеке — повторите попытку."] = "Could not apply the skin. It is saved in your library; please try again.",
+		["Предпросмотр"] = "Preview",
+		["Выберите PNG, чтобы увидеть скин"] = "Choose a PNG to preview the skin",
+		["Не удалось войти в Ely.by. Проверьте логин, пароль и код подтверждения."] = "Could not sign in to Ely.by. Check your login, password and verification code.",
+		["Укажите логин и пароль Ely.by."] = "Enter your Ely.by login and password.",
+		["Код Ely.by должен содержать 6 цифр."] = "The Ely.by code must contain six digits.",
+		["Слишком много попыток входа. Подождите немного и повторите."] = "Too many sign-in attempts. Wait a little and try again.",
+		["PNG должен быть меньше 192 КБ."] = "The PNG must be smaller than 192 KB.",
+		["Скин должен иметь размер 64×64 пикселя."] = "The skin must be 64×64 pixels.",
+		["Выберите изображение скина в формате PNG."] = "Choose a skin image in PNG format.",
+		["Журнал запуска"] = "Launch log",
+		["Журнал появится после первого запуска этой сборки."] = "A log will appear after this instance’s first launch.",
+		["Обновления лаунчера"] = "Launcher updates",
+		["Проверяем новые версии при запуске"] = "New versions are checked at startup",
+		["Проверить обновления"] = "Check for updates",
+		["Обновить"] = "Update",
 		["Сбросить поиск"] = "Clear search",
 		["Попробуйте другой запрос."] = "Try another search.",
 		["Играть"] = "Play",
@@ -69,8 +160,9 @@ public static class LocalizationService
 		["Удалить"] = "Delete",
 		["Без аккаунта"] = "No account",
 		["Аккаунт не подключён"] = "Account not connected",
-		["Офлайн • тестовый режим"] = "Offline • test mode",
-		["Офлайн-режим включён в настройках"] = "Offline mode is enabled in settings",
+		["Аккаунт без лицензии"] = "Unlicensed account",
+		["Ely.by • Minecraft"] = "Ely.by • Minecraft",
+		["Аккаунт без лицензии · скины Ely.by"] = "Unlicensed account · Ely.by skins",
 		["Лицензионная сессия Microsoft активна"] = "Licensed Microsoft session is active",
 		["Для запуска требуется Microsoft-аккаунт"] = "A Microsoft account is required to launch",
 		["Войти в Microsoft"] = "Sign in with Microsoft",
@@ -151,11 +243,39 @@ public static class LocalizationService
 		["Параметры лаунчера и аккаунта"] = "Launcher and account preferences",
 		["Аккаунт Minecraft"] = "Minecraft account",
 		["Вход нужен только для запуска игры"] = "Sign-in is required only to launch the game",
-		["Офлайн-режим"] = "Offline mode",
-		["Создаёт локальную игровую сессию без Microsoft. Серверы с online-mode и Realms в этом режиме недоступны."] = "Creates a local game session without Microsoft. Realms and online-mode servers are unavailable.",
+		["Играйте под своим ником. Подключите Ely.by во вкладке «Скины», чтобы выбрать свой образ."] = "Play with your nickname. Connect Ely.by in Skins to choose your look.",
 		["Разрешить запуск без Microsoft-аккаунта"] = "Allow launching without a Microsoft account",
-		["При выключении для запуска снова потребуется лицензионная сессия"] = "When disabled, a licensed session is required again",
-		["Имя офлайн-игрока"] = "Offline player name",
+		["Ник и скины Ely.by настраиваются отдельно от Microsoft."] = "Ely.by nicknames and skins are managed separately from Microsoft.",
+		["Ник игрока"] = "Player nickname",
+		["Настроить скины Ely.by"] = "Set up Ely.by skins",
+		["Вход в Ely.by"] = "Sign in to Ely.by",
+		["Ваш аккаунт и скины"] = "Your account and skins",
+		["Войдите в Ely.by, чтобы использовать свой ник и скин в игре."] = "Sign in to Ely.by to use your nickname and skin in the game.",
+		["Ник или почта Ely.by"] = "Ely.by nickname or email",
+		["Пароль"] = "Password",
+		["Код из приложения аутентификации"] = "Code from your authenticator app",
+		["Войти"] = "Sign in",
+		["Создать аккаунт"] = "Create account",
+		["Скины Ely.by"] = "Ely.by skins",
+		["Скины Ely.by у других игроков"] = "Ely.by skins for other players",
+		["Ваш скин Minecraft сохраняется"] = "Your Minecraft skin stays unchanged",
+		["Не удалось сохранить настройку скинов"] = "Couldn't save the skin setting",
+		["Скины Microsoft и Ely.by"] = "Microsoft and Ely.by skins",
+		["Выберите аккаунт"] = "Choose account",
+		["Скины Microsoft для лицензионного аккаунта или Ely.by для аккаунта без лицензии."] = "Microsoft skins for a licensed account, or Ely.by for an unlicensed account.",
+		["Войти в Ely.by"] = "Sign in to Ely.by",
+		["Выйти из Ely.by"] = "Sign out of Ely.by",
+		["Ваш скин в игре"] = "Your skin in the game",
+		["Загрузите свой PNG или выберите готовый скин на Ely.by. Всё управление — здесь, во вкладке «Скины»."] = "Upload your PNG or choose a skin from Ely.by. Manage everything here, in Skins.",
+		["Загрузить PNG"] = "Upload PNG",
+		["Открыть Ely.by"] = "Open Ely.by",
+		["Установить WebView2"] = "Install WebView2",
+		["Обновить скин"] = "Refresh skin",
+		["К моему скину"] = "Back to my skin",
+		["Повторить"] = "Retry",
+		["Войдите на сайте в тот же аккаунт Ely.by. Выберите скин и нажмите «Надеть»."] = "Sign in to the same Ely.by account on the website. Choose a skin and select Wear.",
+		["Подключите Ely.by, чтобы использовать свой скин."] = "Connect Ely.by to use your skin.",
+		["Подключение скинов Ely.by…"] = "Connecting Ely.by skins…",
 		["От 3 до 16 символов: латинские буквы, цифры и подчёркивание."] = "3 to 16 characters: Latin letters, numbers, and underscores.",
 		["Память по умолчанию"] = "Default memory",
 		["Минимум, МБ"] = "Minimum, MB",
@@ -321,7 +441,7 @@ public static class LocalizationService
 		["Удаление сборки"] = "Delete instance",
 		["Microsoft Client ID не задан в конфигурации этой сборки. Обратитесь к автору лаунчера."] = "The Microsoft Client ID is not configured in this build. Contact the launcher author.",
 		["Проверьте объём памяти: минимум от 512 МБ, максимум не меньше минимума."] = "Check the memory values: minimum 512 MB, and maximum must not be below minimum.",
-		["Имя офлайн-игрока должно содержать от 3 до 16 латинских букв, цифр или знаков подчёркивания."] = "The offline player name must contain 3 to 16 Latin letters, numbers, or underscores.",
+		["Ник игрока должен содержать от 3 до 16 латинских букв, цифр или знаков подчёркивания."] = "The player nickname must contain 3 to 16 Latin letters, numbers, or underscores.",
 		["Не удалось открыть изображение."] = "Failed to open the image.",
 		["Укажите название и выберите версию Minecraft."] = "Enter a name and select a Minecraft version.",
 		["Выберите версию загрузчика. Если список пуст, эта версия Minecraft не поддерживается выбранным загрузчиком."] = "Select a loader version. If the list is empty, the selected loader does not support this Minecraft version.",
@@ -366,7 +486,7 @@ public static class LocalizationService
 		}
 		if (IsEnglish)
 		{
-			if (English.TryGetValue(text, out string value))
+			if (English.TryGetValue(text, out var value))
 			{
 				return value;
 			}
@@ -402,7 +522,7 @@ public static class LocalizationService
 			}
 			return text;
 		}
-		if (!Russian.Value.TryGetValue(text, out string value2))
+		if (!Russian.Value.TryGetValue(text, out var value2))
 		{
 			return text;
 		}
@@ -420,7 +540,7 @@ public static class LocalizationService
 		{
 			return Translate(message);
 		}
-		if (English.TryGetValue(message, out string value))
+		if (English.TryGetValue(message, out var value))
 		{
 			return value;
 		}
@@ -432,6 +552,8 @@ public static class LocalizationService
 			int num2 = num;
 			return text + text2.Substring(num2, text2.Length - num2);
 		}
+        const string serviceError = "Minecraft Services вернул ошибку ";
+        if (message.StartsWith(serviceError, StringComparison.Ordinal)) return "Minecraft Services returned error " + message[serviceError.Length..];
 		if (message.StartsWith("Удалить файл «", StringComparison.Ordinal))
 		{
 			string text2 = message;
@@ -466,7 +588,7 @@ public static class LocalizationService
 		{
 			return;
 		}
-		ContentControl contentControl;
+		ContentControl? contentControl;
 		if (!(current is Window window))
 		{
 			if (!(current is TextBlock textBlock))
@@ -498,7 +620,7 @@ public static class LocalizationService
 						headeredContentControl.Header = Translate(text2);
 					}
 				}
-				else if (!BindingOperations.IsDataBound(textBox, TextBox.TextProperty))
+				else if (textBox.IsReadOnly && !BindingOperations.IsDataBound(textBox, TextBox.TextProperty))
 				{
 					textBox.Text = Translate(textBox.Text);
 				}
@@ -519,7 +641,12 @@ public static class LocalizationService
 			contentControl.Content = Translate(text3);
 		}
 		goto IL_0142;
-		IL_0142:
+        IL_0142:
+        if (!BindingOperations.IsDataBound(current, System.Windows.Automation.AutomationProperties.NameProperty))
+        {
+            var name = System.Windows.Automation.AutomationProperties.GetName(current);
+            if (!string.IsNullOrEmpty(name)) System.Windows.Automation.AutomationProperties.SetName(current, Translate(name));
+        }
 		if (current is FrameworkElement frameworkElement)
 		{
 			if (frameworkElement.ToolTip is string text4)

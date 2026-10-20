@@ -14,6 +14,8 @@ final class SmokeChecks {
     private static java.util.concurrent.CompletableFuture<Void> reload;
     static void tick(Minecraft mc) {
         if(Boolean.getBoolean("orbit.client.world-smoke") && !WorldSmoke.prepare(mc))return;
+        if(AttackIndicatorSmoke.ACTIVE){AttackIndicatorSmoke.tick(mc);return;}
+        if(Boolean.getBoolean("orbit.client.refill-smoke")){RefillSmoke.tick(mc);return;}
         if(Boolean.getBoolean("orbit.client.glow-smoke")){GlowSmoke.tick(mc);return;}
         if(Boolean.getBoolean("orbit.client.hmi-smoke")){HmiSmoke.tick(mc);return;}
         if(mc.gui.screen()==null && mc.player==null) return;
@@ -25,6 +27,11 @@ final class SmokeChecks {
         if(ticks==20) {initialLanguage=mc.options.languageCode;if(Boolean.getBoolean("orbit.client.label-smoke"))mc.options.languageCode="ru_ru";mc.gui.setScreen(new OrbitScreen());}
         if(ticks==80) {
             UiWorkflowChecks.verify(mc);
+            var legacyCrosshair=ClientConfig.parse(com.google.gson.JsonParser.parseString("{\"modules\":{\"CROSSHAIR\":{\"criticalWidth\":48,\"criticalOffset\":18}}}"));
+            if(legacyCrosshair.state(Module.CROSSHAIR).criticalScale!=75||legacyCrosshair.state(Module.CROSSHAIR).criticalOffset!=9)throw new AssertionError("Old critical-bar layout did not migrate to native compact defaults");
+            var customOffset=ClientConfig.parse(com.google.gson.JsonParser.parseString("{\"modules\":{\"CROSSHAIR\":{\"criticalWidth\":24,\"criticalOffset\":10}}}"));
+            if(customOffset.state(Module.CROSSHAIR).criticalOffset!=10)throw new AssertionError("Explicit critical offset lost during migration");
+
             verifyTypography();
             var migrated=ClientConfig.parse(com.google.gson.JsonParser.parseString("{\"modules\":{\"HP_INDICATOR\":{\"enabled\":true},\"FPS\":{\"enabled\":false,\"customPosition\":true,\"x\":0.43},\"HOLD_MY_ITEMS\":{\"hmiScale\":1.2}}}"));
             if(migrated.state(Module.FPS).enabled||!migrated.state(Module.FPS).customPosition||migrated.state(Module.FPS).x!=.43||Math.abs(migrated.state(Module.HOLD_MY_ITEMS).hmiScale-1.2)>.001)
@@ -64,7 +71,7 @@ final class SmokeChecks {
             }
         }
         if(ticks==150&&mc.gui.screen() instanceof ModuleScreen screen)screen.mouseScrolled(screen.viewX+10,screen.viewY+10,0,-4);
-        if(ticks==165&&mc.gui.screen() instanceof ModuleScreen screen)screen.children().stream().filter(c->c instanceof OrbitSwitch s&&s.label.equals(OrbitClient.tr("Тень текста","Text shadow"))).map(c->(OrbitSwitch)c).findFirst().ifPresent(screen::setFocused);
+        if(ticks==165&&mc.gui.screen() instanceof ModuleScreen screen)screen.children().stream().filter(c->c instanceof OrbitSwitch s&&s.label.equals(OrbitClient.tr("Акцентная полоса","Accent stripe"))).map(c->(OrbitSwitch)c).findFirst().ifPresent(screen::setFocused);
         if(ticks==170) Screenshot.grab(mc,false);
         if(ticks==185 && Boolean.getBoolean("orbit.client.label-smoke")){mc.options.languageCode=initialLanguage;OrbitClient.LOG.info("Orbit label smoke checks completed");mc.stop();return;}
         if(ticks==190) {OrbitClient.config.state(Module.ARMOR).enabled=true;OrbitClient.config.state(Module.EFFECTS).enabled=true;mc.gui.setScreen(new HudEditorScreen(new OrbitScreen()));}

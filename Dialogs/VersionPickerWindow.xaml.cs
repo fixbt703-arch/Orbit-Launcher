@@ -174,10 +174,10 @@ public partial class VersionPickerWindow : Window
 
 	private void Version_Changed(object sender, SelectionChangedEventArgs e)
 	{
-		CatalogVersion catalogVersion = VersionsList.SelectedItem as CatalogVersion;
-		bool flag = (object)catalogVersion != null && (_project.ProjectType == "modpack" || (catalogVersion.GameVersions.Contains<string>(_instance.GameVersion, StringComparer.OrdinalIgnoreCase) && (_project.ProjectType != "mod" || catalogVersion.Loaders.Count == 0 || catalogVersion.Loaders.Contains<string>(_instance.Loader, StringComparer.OrdinalIgnoreCase))));
+		CatalogVersion? catalogVersion = VersionsList.SelectedItem as CatalogVersion;
+		bool flag = catalogVersion is not null && (_project.ProjectType == "modpack" || (catalogVersion.GameVersions.Contains<string>(_instance.GameVersion, StringComparer.OrdinalIgnoreCase) && (_project.ProjectType != "mod" || catalogVersion.Loaders.Count == 0 || catalogVersion.Loaders.Contains<string>(_instance.Loader, StringComparer.OrdinalIgnoreCase))));
 		InstallButton.IsEnabled = flag;
-		if ((object)catalogVersion != null && !flag)
+		if (catalogVersion is not null && !flag)
 		{
 			StatusText.Text = (LocalizationService.IsEnglish ? "This file is not compatible with the selected instance." : "Этот файл несовместим с выбранной сборкой.");
 		}

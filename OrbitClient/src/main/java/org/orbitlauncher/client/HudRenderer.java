@@ -36,8 +36,14 @@ public final class HudRenderer {
     public static void render(GuiGraphicsExtractor g,boolean editor) {
         render(g,editor,-1,-1);
     }
+    static boolean drawing;
     static void render(GuiGraphicsExtractor g,boolean editor,int mouseX,int mouseY) {
+        boolean previous=drawing;drawing=true;
+        try{draw(g,editor,mouseX,mouseY);}finally{drawing=previous;}
+    }
+    private static void draw(GuiGraphicsExtractor g,boolean editor,int mouseX,int mouseY) {
         var mc=Minecraft.getInstance();
+        if(Boolean.getBoolean("orbit.client.refill-smoke"))RefillSmoke.frame(mc);
         bounds.clear();
         if((mc.player==null && !editor) || (!editor && (mc.gui.hud.isHidden() || mc.gui.screen() instanceof HudEditorScreen))) return;
         var views=new ArrayList<View>();
@@ -73,7 +79,7 @@ public final class HudRenderer {
             if(s.showTitle) {
                 int headingColor=textAlpha|(s.accentTitle?ClientConfig.accent(s)&0xFFFFFF:s.textColor);
                 ModuleIcons.draw(g,m,s.padding,s.padding-2,12,headingColor);
-                g.text(OrbitFonts.strong(),OrbitFonts.strong().plainSubstrByWidth(m.title(),Math.max(1,w-s.padding*2-17)),s.padding+17,s.padding,headingColor,s.shadow);
+                g.text(OrbitFonts.strong(),OrbitFonts.strong().plainSubstrByWidth(m.title(),Math.max(1,w-s.padding*2-17)),s.padding+17,s.padding,headingColor,false);
             }
             int header=s.showTitle?s.padding+13:s.padding;
             if(m==Module.KEYS) keys(g,s,w,header);
@@ -84,7 +90,7 @@ public final class HudRenderer {
                 int textX=s.alignment==1?(w-groupWidth)/2:s.alignment==2?w-s.padding-groupWidth:s.padding;
                 if(!row.item.isEmpty())g.item(row.item,textX,header+1);
                 if(row.sprite!=null)g.blitSprite(RenderPipelines.GUI_TEXTURED,row.sprite,textX,header,18,18);
-                g.text(OrbitFonts.ui(),text,textX+iconWidth,header+(row.hasIcon()?5:0),textAlpha|s.textColor,s.shadow);
+                g.text(OrbitFonts.ui(),text,textX+iconWidth,header+(row.hasIcon()?5:0),textAlpha|s.textColor,false);
                 header+=row.height()+s.rowSpacing;
             }
             if(editor) {

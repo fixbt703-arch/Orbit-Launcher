@@ -5,7 +5,6 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
@@ -18,6 +17,7 @@ import java.util.ArrayDeque;
 public final class OrbitClient implements ClientModInitializer {
     public static final Logger LOG=LoggerFactory.getLogger("OrbitClient");
     public static ClientConfig config;
+    public static boolean flatText(net.minecraft.client.gui.Font font){return HudRenderer.drawing||OrbitFonts.owns(font)||Minecraft.getInstance().gui.screen() instanceof OrbitScrollScreen;}
     public static KeyMapping menuKey, zoomKey,inspectKey;
     public static final java.util.EnumMap<Module,KeyMapping> moduleKeys=new java.util.EnumMap<>(Module.class);
     private static final ArrayDeque<Long> LEFT=new ArrayDeque<>(), RIGHT=new ArrayDeque<>();
@@ -53,11 +53,10 @@ public final class OrbitClient implements ClientModInitializer {
             }
             prune(LEFT); prune(RIGHT);
         });
-        UseBlockCallback.EVENT.register((player,level,hand,hit)->{AutoRefill.recordUse(player,hand);return net.minecraft.world.InteractionResult.PASS;});
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STOPPING.register(client->{ClientFeatures.restoreSprint(client);ExtendedChunks.restore(client);AutoRefill.reset();});
         HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,
             Identifier.fromNamespaceAndPath("orbit_client","hud"),(g,delta)-> HudRenderer.render(g,false));
-        LOG.info("Orbit Client 0.18.4 initialized for Minecraft 26.2");
+        LOG.info("Orbit Client 0.18.7 initialized for Minecraft 26.2");
     }
     public static String tr(String ru,String en) {
         return Minecraft.getInstance().options.languageCode.startsWith("ru") ? ru : en;

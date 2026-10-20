@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "adapter": "javaagent, Java 8+, Windows x64 launcher",
+  "loaderSelection": ["Vanilla", "Fabric", "Forge", "NeoForge", "Quilt"],
+  "loaderSelectionTested": "persist + clone + no loader/version mutation",
+  "gameplay": [
+    { "minecraft": "26.2", "loader": "Fabric", "loaderVersion": "0.19.5", "java": 25, "date": "2026-10-19", "result": "PASS two real clients, isolated host LAN world, clickable invite, ordinary Direct Connection to host world, no Orbit Client/Fabric API" }
+  ],
+  "nettyFixtures": ["4.0.23.Final / Java 8", "4.1.25.Final / Java 25", "4.1.97.Final / Java 25", "4.2.7.Final / Java 25"],
+  "unverifiedGameFamilies": ["1.7.10", "1.12.2", "1.16.5", "1.20.1", "1.21.x", "26.x other than tested 26.2 Fabric"],
+  "fallback": "launcher panel, explicit owned LAN port, local LAN entry in multiplayer list",
+  "limitations": ["no universal gameplay matrix claim", "versions without built-in LAN publication require separate server support", "no protocol/mod translation", "no two-ISP 60-minute soak yet", "engine changes may require rejoining"]
+}

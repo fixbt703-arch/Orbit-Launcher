@@ -1,7 +1,7 @@
 plugins {
     id 'net.fabricmc.fabric-loom' version '1.17.20'
 }
-version = '0.18.4'
+version = '0.18.7'
 evaluationDependsOn(':holdmyitems')
 group = 'org.orbitlauncher'
 base { archivesName = 'orbit-client' }
@@ -88,6 +88,16 @@ loom {
     }
     runs {
         client {
+            if (project.hasProperty('orbitAttackSmoke')) {
+                vmArg '-Dorbit.client.smoke-test=true'
+                vmArg '-Dorbit.client.world-smoke=true'
+                vmArg '-Dorbit.client.attack-smoke=true'
+            }
+            if (project.hasProperty('orbitRefillSmoke')) {
+                vmArg '-Dorbit.client.smoke-test=true'
+                vmArg '-Dorbit.client.world-smoke=true'
+                vmArg '-Dorbit.client.refill-smoke=true'
+            }
             if (project.hasProperty('orbitGlowSmoke')) {
                 vmArg '-Dorbit.client.smoke-test=true'
                 vmArg '-Dorbit.client.world-smoke=true'

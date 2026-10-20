@@ -56,14 +56,39 @@ public partial class NewSkinDialog : Window
 		};
 		if (openFileDialog.ShowDialog(this) == true)
 		{
+            try
+            {
+                if (new FileInfo(openFileDialog.FileName).Length > 196608) throw new InvalidDataException(LocalizationService.Translate("PNG должен быть меньше 192 КБ."));
+                MinecraftSkinService.ValidateSkin(File.ReadAllBytes(openFileDialog.FileName));
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or NotSupportedException)
+            { ErrorText.Text = LocalizationService.Translate(ex.Message); return; }
+            ErrorText.Text = "";
 			SkinFilePath = openFileDialog.FileName;
 			FileBox.Text = Path.GetFileName(openFileDialog.FileName);
 			if (string.IsNullOrWhiteSpace(NameBox.Text))
 			{
-				NameBox.Text = Path.GetFileNameWithoutExtension(openFileDialog.FileName);
-			}
-		}
-	}
+				NameBox.Text = Path.GetFileNameWithoutExtension(openFileDialog.FileName)[..Math.Min(28, Path.GetFileNameWithoutExtension(openFileDialog.FileName).Length)];
+            }
+            UpdatePreview();
+        }
+    }
+
+    private void Model_Changed(object sender, RoutedEventArgs e) { if (IsInitialized) UpdatePreview(); }
+    private void UpdatePreview()
+    {
+        if (SkinPreview is null || PreviewHint is null || !File.Exists(SkinFilePath)) return;
+        try
+        {
+            SkinPreview.Source = SkinLibraryService.CreateFrontPreview(MinecraftSkinService.DecodeSkin(File.ReadAllBytes(SkinFilePath)), SkinVariant == "slim");
+            PreviewHint.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or NotSupportedException or ArgumentException)
+        {
+            ErrorText.Text = LocalizationService.Translate(ex.Message);
+            SkinPreview.Source = null; PreviewHint.Visibility = Visibility.Visible;
+        }
+    }
 
 	private void Save_Click(object sender, RoutedEventArgs e)
 	{
@@ -79,13 +104,13 @@ public partial class NewSkinDialog : Window
 	{
 		if (string.IsNullOrWhiteSpace(SkinName))
 		{
-			LocalizationService.Show(this, "Введите название скина.", "Новый скин", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+			ErrorText.Text = LocalizationService.Translate("Введите название скина.");
 			NameBox.Focus();
 			return;
 		}
 		if (string.IsNullOrWhiteSpace(SkinFilePath) || !File.Exists(SkinFilePath))
 		{
-			LocalizationService.Show(this, "Выберите PNG-файл скина.", "Новый скин", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+			ErrorText.Text = LocalizationService.Translate("Выберите PNG-файл скина.");
 			return;
 		}
 		try
@@ -94,7 +119,7 @@ public partial class NewSkinDialog : Window
 		}
 		catch (Exception ex)
 		{
-			LocalizationService.Show(this, ex.Message, "Новый скин", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+			ErrorText.Text = LocalizationService.Translate(ex.Message);
 			return;
 		}
 		ApplyAfterSave = apply;

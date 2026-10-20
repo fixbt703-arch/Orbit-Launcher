@@ -10,7 +10,7 @@ namespace OrbitLauncher.Services;
 /// <summary>Client-side MRPACK installation. All downloads are verified before touching the instance.</summary>
 public sealed class MrpackInstaller
 {
-    private static readonly HttpClient Downloads = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromMinutes(3) };
+    private static readonly HttpClient Downloads = LauncherNetwork.CreateClient(redirects: false);
     private static readonly SemaphoreSlim InstallGate = new(1, 1);
     private readonly HttpClient _downloads;
     public MrpackInstaller(HttpClient? downloads = null) => _downloads = downloads ?? Downloads;

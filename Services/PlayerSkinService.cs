@@ -29,6 +29,12 @@ public sealed class PlayerSkinService
 
     public PlayerHeadImage? GetCachedHead(string username) => ReadCache(username)?.Head;
 
+    public void ForgetSkin(string username)
+    {
+        _heads.TryRemove(username, out _);
+        try { File.Delete(CachePath(username)); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+    }
+
     private CachedHead? ReadCache(string username)
     {
         if (string.IsNullOrWhiteSpace(username)) return null;

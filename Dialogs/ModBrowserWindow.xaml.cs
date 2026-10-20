@@ -260,7 +260,7 @@ public partial class ModBrowserWindow : Window
 
 	private async Task ReloadTypeFiltersAsync(string projectType, CancellationToken cancellationToken = default(CancellationToken))
 	{
-		string previousLoader = (LoaderCombo.SelectedItem as ModSearchOption)?.Id;
+		string? previousLoader = (LoaderCombo.SelectedItem as ModSearchOption)?.Id;
 		Loaders.Clear();
 		Categories.Clear();
 		Categories.Add(new ModCategoryOption(string.Empty, "Все категории"));
@@ -299,7 +299,7 @@ public partial class ModBrowserWindow : Window
 		catch (Exception) when (!cancellationToken.IsCancellationRequested)
 		{
 		}
-		string preferredLoader = ((projectType == "mod" && !string.Equals(_instance.Loader, "Vanilla", StringComparison.OrdinalIgnoreCase)) ? _instance.Loader.ToLowerInvariant() : previousLoader);
+		string? preferredLoader = ((projectType == "mod" && !string.Equals(_instance.Loader, "Vanilla", StringComparison.OrdinalIgnoreCase)) ? _instance.Loader.ToLowerInvariant() : previousLoader);
 		LoaderCombo.SelectedValue = (Loaders.Any((ModSearchOption item) => item.Id == preferredLoader) ? preferredLoader : Loaders.FirstOrDefault()?.Id);
 		CategoryCombo.SelectedIndex = 0;
 		ComboBox environmentCombo = EnvironmentCombo;
@@ -367,7 +367,7 @@ public partial class ModBrowserWindow : Window
 			LoadMoreButton.Visibility = ((Results.Count >= _totalHits) ? Visibility.Collapsed : Visibility.Visible);
 			StatusText.Text = (LocalizationService.IsEnglish ? $"{CurrentSourceName}: showing {Results.Count} of {_totalHits}" : $"{CurrentSourceName}: показано {Results.Count} из {_totalHits}");
 			ScheduleVisibleIcons();
-			base.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(ScheduleVisibleIcons));
+			_ = base.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(ScheduleVisibleIcons));
 		}
 		catch (OperationCanceledException)
 		{
@@ -420,7 +420,7 @@ public partial class ModBrowserWindow : Window
 			foreach (ModSearchResult modSearchResult in array)
 			{
 				_iconAttempts[modSearchResult] = _iconAttempts.GetValueOrDefault(modSearchResult) + 1;
-				LoadIconAsync(modSearchResult, _imageCancellation.Token);
+				_ = LoadIconAsync(modSearchResult, _imageCancellation.Token);
 			}
 		}
 	}
@@ -434,7 +434,7 @@ public partial class ModBrowserWindow : Window
 			bool retry = false;
 			try
 			{
-				BitmapSource bitmapSource = await _imageCache.GetAsync(project.IconUrl, 96, cancellationToken);
+				BitmapSource? bitmapSource = await _imageCache.GetAsync(project.IconUrl, 96, cancellationToken);
 				if (bitmapSource != null && !cancellationToken.IsCancellationRequested && !_closed)
 				{
 					project.Icon = bitmapSource;
@@ -611,8 +611,8 @@ public partial class ModBrowserWindow : Window
 			DetailContent.Visibility = Visibility.Visible;
 			DetailLoadingPanel.Visibility = Visibility.Collapsed;
 			InterfaceMotion.Reveal(DetailContent);
-			LoadGalleryAsync(modProjectDetails.Gallery.Take(10).ToList(), token);
-			RenderDescriptionAsync(modProjectDetails.BodyText, token);
+			_ = LoadGalleryAsync(modProjectDetails.Gallery.Take(10).ToList(), token);
+			_ = RenderDescriptionAsync(modProjectDetails.BodyText, token);
 		}
 		catch (OperationCanceledException)
 		{
@@ -690,7 +690,7 @@ public partial class ModBrowserWindow : Window
 
 	private async void ChooseVersion_Click(object sender, RoutedEventArgs e)
 	{
-		ModProjectDetails details = _selectedDetails;
+		ModProjectDetails? details = _selectedDetails;
 		if (details == null)
 		{
 			return;
@@ -701,8 +701,8 @@ public partial class ModBrowserWindow : Window
 		};
 		if (versionPickerWindow.ShowDialog() == true)
 		{
-			CatalogVersion selectedVersion = versionPickerWindow.SelectedVersion;
-			if ((object)selectedVersion != null)
+			CatalogVersion? selectedVersion = versionPickerWindow.SelectedVersion;
+			if (selectedVersion is not null)
 			{
 				await DownloadProjectAsync(details.SearchResult, selectedVersion);
 			}
@@ -711,7 +711,7 @@ public partial class ModBrowserWindow : Window
 
 	private void GalleryImage_Click(object sender, MouseButtonEventArgs e)
 	{
-		ModProjectDetails selectedDetails = _selectedDetails;
+		ModProjectDetails? selectedDetails = _selectedDetails;
 		if (selectedDetails != null && (sender as FrameworkElement)?.DataContext is ModGalleryImage item)
 		{
 			List<ModGalleryImage> list = selectedDetails.Gallery.ToList();
@@ -727,7 +727,7 @@ public partial class ModBrowserWindow : Window
 
 	private async Task DownloadProjectAsync(ModSearchResult project, CatalogVersion? selectedVersion = null)
 	{
-		if (_installingModpack || project.InstallState == CatalogInstallState.Downloading || ((object)selectedVersion == null && !project.CanInstall))
+		if (_installingModpack || project.InstallState == CatalogInstallState.Downloading || (selectedVersion is null && !project.CanInstall))
 		{
 			return;
 		}
@@ -776,7 +776,7 @@ public partial class ModBrowserWindow : Window
 		{
 			string selectedGameVersion = (GameVersionCombo.SelectedItem as ModSearchOption)?.Id ?? string.Empty;
 			string selectedLoader = (LoaderCombo.SelectedItem as ModSearchOption)?.Id ?? string.Empty;
-			InstalledContentRecord previousRecord = (((object)selectedVersion == null || project.ProjectType == "modpack") ? null : _installedContentRecords.FirstOrDefault((InstalledContentRecord record) => record.SourceId.Equals(project.SourceId, StringComparison.OrdinalIgnoreCase) && record.ProjectId.Equals(project.ProjectId, StringComparison.OrdinalIgnoreCase)));
+			InstalledContentRecord? previousRecord = ((selectedVersion is null || project.ProjectType == "modpack") ? null : _installedContentRecords.FirstOrDefault((InstalledContentRecord record) => record.SourceId.Equals(project.SourceId, StringComparison.OrdinalIgnoreCase) && record.ProjectId.Equals(project.ProjectId, StringComparison.OrdinalIgnoreCase)));
 			ModDownloadResult modDownloadResult;
 			if (project.SourceId == "curseforge")
 			{
@@ -784,7 +784,7 @@ public partial class ModBrowserWindow : Window
 				ModSearchResult project2 = project;
 				GameInstance instance = _instance;
 				string dependencyDownloadMode = _dependencyDownloadMode;
-				int? selectedFileId = (((object)selectedVersion == null) ? ((int?)null) : new int?(int.Parse(selectedVersion.Id)));
+				int? selectedFileId = ((selectedVersion is null) ? ((int?)null) : new int?(int.Parse(selectedVersion.Id)));
 				modDownloadResult = await curseForge.DownloadAsync(project2, instance, selectedGameVersion, selectedLoader, dependencyDownloadMode, progress, default(CancellationToken), selectedFileId);
 			}
 			else
@@ -793,7 +793,7 @@ public partial class ModBrowserWindow : Window
 				ModSearchResult project3 = project;
 				GameInstance instance2 = _instance;
 				string dependencyDownloadMode2 = _dependencyDownloadMode;
-				string projectType = selectedVersion?.Id;
+				string? projectType = selectedVersion?.Id;
 				modDownloadResult = await modrinth.DownloadAsync(project3, instance2, selectedGameVersion, selectedLoader, dependencyDownloadMode2, progress, default(CancellationToken), projectType);
 			}
 			ModDownloadResult result = modDownloadResult;
@@ -928,7 +928,7 @@ public partial class ModBrowserWindow : Window
 			project.SetInstallState(value);
 			return;
 		}
-		InstalledContentRecord installedContentRecord = _installedContentRecords.FirstOrDefault((InstalledContentRecord record) => string.Equals(record.SourceId, project.SourceId, StringComparison.OrdinalIgnoreCase) && string.Equals(record.ProjectId, project.ProjectId, StringComparison.OrdinalIgnoreCase));
+		InstalledContentRecord? installedContentRecord = _installedContentRecords.FirstOrDefault((InstalledContentRecord record) => string.Equals(record.SourceId, project.SourceId, StringComparison.OrdinalIgnoreCase) && string.Equals(record.ProjectId, project.ProjectId, StringComparison.OrdinalIgnoreCase));
 		CatalogInstallState value2;
 		if (installedContentRecord != null && _installedContentRegistry.FileStillExists(_instance, installedContentRecord))
 		{
@@ -1045,7 +1045,7 @@ public partial class ModBrowserWindow : Window
 		}
 		try
 		{
-			return Directory.EnumerateFiles(_instance.ModsPath, "*.jar", SearchOption.TopDirectoryOnly).Select(Path.GetFileNameWithoutExtension).Any((string name) => name?.Contains("fabric-api", StringComparison.OrdinalIgnoreCase) ?? false);
+			return Directory.EnumerateFiles(_instance.ModsPath, "*.jar", SearchOption.TopDirectoryOnly).Select(Path.GetFileNameWithoutExtension).Any((string? name) => name?.Contains("fabric-api", StringComparison.OrdinalIgnoreCase) ?? false);
 		}
 		catch
 		{
@@ -1063,7 +1063,7 @@ public partial class ModBrowserWindow : Window
 			return;
 		}
 		List<DescriptionImageRow> list = new List<DescriptionImageRow>();
-		DescriptionImageRow descriptionImageRow = null;
+		DescriptionImageRow? descriptionImageRow = null;
 		string[] array = text.Split('\n');
 		foreach (string text2 in array)
 		{
@@ -1243,7 +1243,7 @@ public partial class ModBrowserWindow : Window
 				int num2 = num;
 				inlines.Add(new Run(text.Substring(num2, item2.Index - num2)));
 			}
-			Uri result;
+			Uri? result;
 			if (item2.Groups["bold"].Success)
 			{
 				string text2 = (item2.Groups["boldText"].Success ? item2.Groups["boldText"].Value : item2.Groups["underText"].Value);
@@ -1297,7 +1297,7 @@ public partial class ModBrowserWindow : Window
 		_ = 1;
 		try
 		{
-			byte[] array = await _imageCache.GetBytesAsync(item.Spec.ImageUrl, 20000000, cancellationToken);
+			byte[]? array = await _imageCache.GetBytesAsync(item.Spec.ImageUrl, 20000000, cancellationToken);
 			if (array == null)
 			{
 				item.Container.Visibility = Visibility.Collapsed;
@@ -1345,13 +1345,13 @@ public partial class ModBrowserWindow : Window
 
 	private static Size NaturalDescriptionImageSize(DescriptionImageItem item)
 	{
-		BitmapSource bitmapSource = item.Image.Source as BitmapSource;
+		BitmapSource? bitmapSource = item.Image.Source as BitmapSource;
 		int num = Math.Max(1, bitmapSource?.PixelWidth ?? 48);
 		int num2 = Math.Max(1, bitmapSource?.PixelHeight ?? 48);
 		double? width = item.Spec.Width;
-		double num3 = ((width.HasValue && width.GetValueOrDefault() > 0.0) ? item.Spec.Width.Value : ((double)num));
+		double num3 = ((width.HasValue && width.GetValueOrDefault() > 0.0) ? width.GetValueOrDefault() : ((double)num));
 		width = item.Spec.Height;
-		double height = ((width.HasValue && width.GetValueOrDefault() > 0.0) ? item.Spec.Height.Value : ((double)num2 * num3 / (double)num));
+		double height = ((width.HasValue && width.GetValueOrDefault() > 0.0) ? width.GetValueOrDefault() : ((double)num2 * num3 / (double)num));
 		return new Size(num3, height);
 	}
 
@@ -1427,29 +1427,14 @@ public partial class ModBrowserWindow : Window
 		return result;
 	}
 
-	private static bool TryNormalizeWebUrl(string value, out string url)
-	{
-		value = WebUtility.HtmlDecode(value.Trim());
-		if (value.StartsWith("//", StringComparison.Ordinal))
-		{
-			value = "https:" + value;
-		}
-		Uri result;
-		bool flag = Uri.TryCreate(value, UriKind.Absolute, out result);
-		if (flag)
-		{
-			string scheme = result.Scheme;
-			bool flag2 = ((scheme == "https" || scheme == "http") ? true : false);
-			flag = flag2;
-		}
-		if (flag)
-		{
-			url = result.AbsoluteUri;
-			return true;
-		}
-		url = string.Empty;
-		return false;
-	}
+    private static bool TryNormalizeWebUrl(string value, out string url)
+    {
+        value = WebUtility.HtmlDecode(value.Trim());
+        if (value.StartsWith("//", StringComparison.Ordinal)) value = "https:" + value;
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http")
+        { url = uri.AbsoluteUri; return true; }
+        url = string.Empty; return false;
+    }
 
 	private void OpenProjectWebsite_Click(object sender, RoutedEventArgs e)
 	{
@@ -1472,7 +1457,7 @@ public partial class ModBrowserWindow : Window
 	{
 		if (!string.IsNullOrWhiteSpace(_lastDownloadPath))
 		{
-			string directoryName = Path.GetDirectoryName(_lastDownloadPath);
+			string? directoryName = Path.GetDirectoryName(_lastDownloadPath);
 			if (directoryName != null)
 			{
 				Process.Start(new ProcessStartInfo("explorer.exe", "\"" + directoryName + "\"")

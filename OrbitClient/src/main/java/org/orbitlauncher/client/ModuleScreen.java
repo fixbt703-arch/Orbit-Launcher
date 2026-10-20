@@ -28,7 +28,7 @@ final class ModuleScreen extends OrbitScrollScreen {
         w=Math.min(width-24,520);x=(width-w)/2;
         panelHeight=Math.min(height-24,400);top=(height-panelHeight)/2;rows.clear();minimumDistance=null;
         var s=OrbitClient.config.state(module);
-        String[] tabs=module==Module.HITBOX?new String[]{tr("Основное","General"),tr("Оформление","Appearance"),tr("Цель","Target"),tr("Отображение","Visibility")}:new String[]{tr("Основное","General"),tr("Оформление","Appearance"),tr("Параметры","Options")};
+        String[] tabs=module==Module.HITBOX?new String[]{tr("Основное","General"),tr("Оформление","Appearance"),tr("Цель","Target"),tr("Отображение","Visibility")}:module==Module.CROSSHAIR?new String[]{tr("Основное","General"),tr("Оформление","Appearance"),tr("Параметры","Options"),tr("Крит","Critical")}:new String[]{tr("Основное","General"),tr("Оформление","Appearance"),tr("Параметры","Options")};
         var visibleTabs=availableTabs();if(!visibleTabs.contains(tab))tab=0;
         int tw=(w-24-4*(visibleTabs.size()-1))/visibleTabs.size();
         for(int i=0;i<visibleTabs.size();i++) {
@@ -115,7 +115,6 @@ final class ModuleScreen extends OrbitScrollScreen {
                 toggle(tr("Акцентная полоса","Accent stripe"),()->s.accentBar,v->s.accentBar=v);
                 toggle(tr("Заголовок","Title"),()->s.showTitle,v->s.showTitle=v);
                 toggle(tr("Акцентный заголовок","Accent title"),()->s.accentTitle,v->s.accentTitle=v);
-                toggle(tr("Тень текста","Text shadow"),()->s.shadow,v->s.shadow=v);
                 slider(tr("Прозрачность текста","Text opacity"),.2,1,()->s.textOpacity,v->s.textOpacity=(float)v,v->Math.round(v*100)+"%");
                 slider(tr("Внутренние отступы","Padding"),4,16,()->s.padding,v->s.padding=(int)Math.round(v),v->Long.toString(Math.round(v)));
                 slider(tr("Интервал строк","Row spacing"),0,8,()->s.rowSpacing,v->s.rowSpacing=(int)Math.round(v),v->Long.toString(Math.round(v)));
@@ -138,6 +137,14 @@ final class ModuleScreen extends OrbitScrollScreen {
                     }
                 }
                 if(module==Module.CROSSHAIR)slider(tr("Непрозрачность","Opacity"),0,1,()->s.opacity,v->s.opacity=(float)v,v->Math.round(v*100)+"%");
+            }
+        } else if(module==Module.CROSSHAIR&&tab==3){
+            toggle(tr("Ванильный индикатор атаки","Vanilla attack indicator"),()->s.criticalIndicator,v->s.criticalIndicator=v);
+            if(s.criticalIndicator){
+                action(tr("Размер: ","Size: ")+s.criticalScale+"%"+(s.criticalScale==100?tr(" · Как в Minecraft"," · Minecraft size"):""),()->{s.criticalScale=s.criticalScale==50?75:s.criticalScale==75?100:50;OrbitClient.save();rebuildWidgets();});
+                slider(tr("Отступ под прицелом","Offset below crosshair"),0,24,()->s.criticalOffset,v->s.criticalOffset=(int)Math.round(v),v->Math.round(v)+" px");
+                toggle(tr("Отмечать возможность критического удара","Highlight critical opportunity"),()->s.criticalHighlight,v->s.criticalHighlight=v);
+                toggle(tr("Только при наведении на живую цель","Only when aiming at a living target"),()->s.criticalTargetOnly,v->s.criticalTargetOnly=v);
             }
         } else if(module==Module.HITBOX&&tab==2){
             toggle(tr("Подсвечивать цель под прицелом","Highlight targeted entity"),()->s.hitboxHighlight,v->s.hitboxHighlight=v);
@@ -226,7 +233,7 @@ final class ModuleScreen extends OrbitScrollScreen {
                     toggle(tr("Скрывать в меню","Hide in menus"),()->s.crosshairHideMenus,v->s.crosshairHideMenus=v);
                 }
                 case WAYPOINT -> {
-                    rows.add(y->{var field=new EditBox(font,rowX+10,y+11,rowWidth-20,10,Component.literal(tr("Название точки","Waypoint name")));field.setBordered(false);field.setTextColor(OrbitTheme.TEXT);field.setMaxLength(32);field.setValue(waypointName);field.setResponder(v->waypointName=v);addRenderableWidget(field);});
+                    rows.add(y->{var field=new EditBox(font,rowX+10,y+11,rowWidth-20,10,Component.literal(tr("Название точки","Waypoint name")));field.setBordered(false);field.setTextShadow(false);field.setTextColor(OrbitTheme.TEXT);field.setMaxLength(32);field.setValue(waypointName);field.setResponder(v->waypointName=v);addRenderableWidget(field);});
                     action(tr("Сохранить текущую позицию","Save current position"),()->ClientFeatures.saveWaypoint(waypointName));
                     action(tr("Удалить точку","Remove waypoint"),()->{OrbitClient.config.waypoint=null;OrbitClient.save();});
                 }
@@ -246,6 +253,7 @@ final class ModuleScreen extends OrbitScrollScreen {
         var result=new ArrayList<Integer>();result.add(0);
         if(module.hasHud() || switch(module){case HOLD_MY_ITEMS,GLINT,HITBOX,SKIN_3D,CROSSHAIR->true;default->false;})result.add(1);
         if(module==Module.HITBOX){result.add(2);result.add(3);}
+        else if(module==Module.CROSSHAIR){result.add(2);result.add(3);}
         else if(switch(module){case HOLD_MY_ITEMS,KEYS,FPS,PING,CPS,CLOCK,ARMOR,ITEM,EFFECTS,REACH,COORDS,ZOOM,CHUNKS,GLINT,SKIN_3D,CROSSHAIR,WAYPOINT->true;default->false;})result.add(2);
         return result;
     }
@@ -304,7 +312,7 @@ final class ModuleScreen extends OrbitScrollScreen {
         OrbitTheme.rounded(g,x+12,top+8,28,28,OrbitTheme.CARD);
         ModuleIcons.draw(g,module,x+16,top+12,20,OrbitTheme.MUTED);
         g.text(OrbitFonts.heading(),OrbitTheme.ellipsize(OrbitFonts.heading(),module.title(),w-(module==Module.CROSSHAIR?112:64)),x+49,top+20,OrbitTheme.TEXT,false);
-        if(module==Module.CROSSHAIR) {HudRenderer.panel(g,x+w-54,top+3,44,32,OrbitTheme.CARD);g.pose().pushMatrix();g.pose().translate(x+w-32,top+19);g.pose().scale(.48f,.48f);CrosshairRenderer.draw(g,0,0,OrbitClient.config.state(module),false);g.pose().popMatrix();}
+        if(module==Module.CROSSHAIR) {HudRenderer.panel(g,x+w-54,top+3,44,32,OrbitTheme.CARD);g.pose().pushMatrix();g.pose().translate(x+w-32,top+19);g.pose().scale(.48f,.48f);CrosshairRenderer.draw(g,0,0,OrbitClient.config.state(module),false,0);g.pose().popMatrix();}
         g.enableScissor(viewX,viewY,viewX+viewWidth,viewY+viewHeight);
         for(var child:children())if(child instanceof EditBox field && field.visible)OrbitTheme.surface(g,field.getX()-10,field.getY()-11,field.getWidth()+20,32,OrbitTheme.CARD,field.isFocused()?OrbitTheme.ACCENT:OrbitTheme.BORDER);
         g.disableScissor();
