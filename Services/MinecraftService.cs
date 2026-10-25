@@ -138,11 +138,12 @@ public sealed class MinecraftService
     			var agent = await ElyGameIntegration.EnsureAgentAsync(_httpClient, cancellationToken);
     			mLaunchOption.ExtraJvmArguments = new[] { ElyGameIntegration.AgentArgument(agent) };
     		}
-    		else if (showElySkins && !LicensedSkinBridge.HasCustomSkinLoader(instance))
+    		if ((useEly || showElySkins) && !LicensedSkinBridge.HasCustomSkinLoader(instance))
     		{
     			progress.Report(new LaunchProgress(98.0, "Подключение скинов Ely.by…"));
     			var agent = await LicensedSkinBridge.EnsureAsync(cancellationToken);
-    			mLaunchOption.ExtraJvmArguments = LicensedSkinBridge.Arguments(agent, session.UUID ?? "", session.Username ?? "");
+    			mLaunchOption.ExtraJvmArguments = (mLaunchOption.ExtraJvmArguments ?? Array.Empty<MArgument>()).Concat(
+                    LicensedSkinBridge.Arguments(agent, session.UUID ?? "", session.Username ?? "", includeViewer: settings.OfflineModeEnabled)).ToArray();
     		}
             bool connectReady = false;
             if (instance.OrbitConnectEnabled)

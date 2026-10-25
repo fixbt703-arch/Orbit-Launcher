@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using HtmlAgilityPack;
 using OrbitLauncher.Models;
 using OrbitLauncher.Utilities;
 
@@ -18,9 +19,15 @@ public sealed class GitHubUpdateService(HttpClient httpClient, string? cacheRoot
     private const long MaximumInstallerSize = 512L * 1024 * 1024;
     private static readonly string RepositoryPath = $"/{AppConfiguration.GitHubOwner}/{AppConfiguration.GitHubRepository}";
     private readonly string _cache = Path.GetFullPath(cacheRoot ?? Path.Combine(AppPaths.Cache, "updates"));
+    private string? _publishedVersion;
+    public string? PublishedVersion => _publishedVersion ??= ReadPublishedVersion();
 
-    public static HttpClient CreateHttpClient() => new(new HttpClientHandler { AllowAutoRedirect = false })
-        { Timeout = Timeout.InfiniteTimeSpan };
+    public static HttpClient CreateHttpClient()
+    {
+        var client = LauncherNetwork.CreateClient(redirects: false);
+        client.Timeout = Timeout.InfiniteTimeSpan;
+        return client;
+    }
 
     public static bool TryParseVersion(string? value, out Version version)
     {
@@ -32,6 +39,20 @@ public sealed class GitHubUpdateService(HttpClient httpClient, string? cacheRoot
     }
 
     public async Task<LauncherUpdate?> CheckAsync(Version current, CancellationToken cancellationToken = default)
+    {
+        try { return await CheckReleaseAsync(current, cancellationToken); }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested
+            && ex is HttpRequestException or OperationCanceledException or JsonException)
+        {
+            // The public page provides display metadata only; it cannot authorize an installer.
+            try { await ReadPublishedPageAsync(cancellationToken); }
+            catch (Exception pageError) when (!cancellationToken.IsCancellationRequested
+                && pageError is HttpRequestException or OperationCanceledException or InvalidDataException) { }
+            throw;
+        }
+    }
+
+    private async Task<LauncherUpdate?> CheckReleaseAsync(Version current, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(20));
@@ -46,13 +67,10 @@ public sealed class GitHubUpdateService(HttpClient httpClient, string? cacheRoot
         var release = json.RootElement;
         if (release.GetProperty("draft").GetBoolean() || release.GetProperty("prerelease").GetBoolean()) return null;
         var tag = release.GetProperty("tag_name").GetString() ?? "";
-        if (!TryParseVersion(tag, out var version))
-        {
-            var title = release.TryGetProperty("name", out var name) ? name.GetString() : null;
-            var titleMatch = Regex.Match(title ?? "", @"^Orbit\s+Launcher\s+(.+)$", RegexOptions.IgnoreCase);
-            if (!titleMatch.Success || !TryParseVersion(titleMatch.Groups[1].Value, out version))
-                throw new InvalidDataException("У релиза GitHub не указана версия. Используйте тег вида v1.4.1.");
-        }
+        var title = release.TryGetProperty("name", out var name) ? name.GetString() : null;
+        if (!TryReadReleaseVersion(tag, title, out var version, out var display))
+            throw new InvalidDataException("У релиза GitHub не указана версия. Используйте тег вида v1.4.1.");
+        RememberPublishedVersion(display);
         var normalizedCurrent = new Version(current.Major, current.Minor, Math.Max(0, current.Build), Math.Max(0, current.Revision));
         if (version <= normalizedCurrent) return null;
         if (string.IsNullOrWhiteSpace(tag) || tag.Length > 200 || tag.Any(char.IsControl))
@@ -83,6 +101,74 @@ public sealed class GitHubUpdateService(HttpClient httpClient, string? cacheRoot
         if (notes.Length > 12000) notes = notes[..12000] + "\n…";
         return new LauncherUpdate(version, tag, notes,
             new Uri($"https://github.com{RepositoryPath}/releases/tag/{Uri.EscapeDataString(tag)}"), download, size, hash);
+    }
+
+    private static bool TryReadReleaseVersion(string tag, string? title, out Version version, out string display)
+    {
+        var candidate = Regex.Replace(tag.Trim(), @"^Update[_ -]", "", RegexOptions.IgnoreCase);
+        if (!TryParseVersion(candidate, out version))
+        {
+            var match = Regex.Match(title?.Trim() ?? "", @"^Orbit\s+Launcher\s*(v?\d+\.\d+(?:\.\d+){0,2}(?:\+[0-9A-Za-z.-]+)?)$", RegexOptions.IgnoreCase);
+            candidate = match.Success ? match.Groups[1].Value : "";
+            if (!TryParseVersion(candidate, out version)) { display = ""; return false; }
+        }
+        display = Regex.Match(candidate, @"\d+\.\d+(?:\.\d+){0,2}").Value;
+        return true;
+    }
+
+    private string? ReadPublishedVersion()
+    {
+        try
+        {
+            var file = Path.Combine(_cache, "published-version.txt");
+            if (!File.Exists(file) || new FileInfo(file).Length > 64) return null;
+            using var stream = File.OpenRead(file);
+            var bytes = new byte[65];
+            var count = 0;
+            while (count < bytes.Length)
+            {
+                var read = stream.Read(bytes, count, bytes.Length - count);
+                if (read == 0) break;
+                count += read;
+            }
+            var text = Encoding.UTF8.GetString(bytes, 0, count).Trim();
+            return count <= 64 && Regex.IsMatch(text, @"^\d+\.\d+(?:\.\d+){0,2}$") && TryParseVersion(text, out _) ? text : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    private void RememberPublishedVersion(string display)
+    {
+        _publishedVersion = display;
+        try
+        {
+            Directory.CreateDirectory(_cache);
+            File.WriteAllText(Path.Combine(_cache, "published-version.txt"), display);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
+
+    private async Task ReadPublishedPageAsync(CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        using var response = await SendAsync(new Uri($"https://github.com{RepositoryPath}/releases/latest"), timeout.Token, releasePage: true);
+        response.EnsureSuccessStatusCode();
+        var finalUri = response.RequestMessage?.RequestUri;
+        var prefix = RepositoryPath + "/releases/tag/";
+        if (finalUri is null || finalUri.Scheme != "https" || finalUri.Host != "github.com" || !finalUri.IsDefaultPort
+            || finalUri.UserInfo.Length != 0 || finalUri.Query.Length != 0 || finalUri.Fragment.Length != 0
+            || !finalUri.AbsolutePath.StartsWith(prefix, StringComparison.Ordinal)
+            || finalUri.AbsolutePath.Length == prefix.Length) throw new InvalidDataException("Не удалось определить релиз GitHub.");
+        var html = new HtmlDocument();
+        html.LoadHtml(Encoding.UTF8.GetString(await ReadLimitedAsync(response.Content, 2 * 1024 * 1024, timeout.Token)));
+        var title = WebUtility.HtmlDecode(html.DocumentNode.SelectSingleNode("//title")?.InnerText ?? "");
+        if (title.Length > 1000) throw new InvalidDataException("Некорректный заголовок релиза GitHub.");
+        var match = Regex.Match(title, @"^Release\s+(.+?)\s+·\s+" + Regex.Escape(RepositoryPath[1..]) + @"\s+·\s+GitHub$", RegexOptions.IgnoreCase);
+        var tag = Uri.UnescapeDataString(finalUri.AbsolutePath[prefix.Length..]);
+        if (!match.Success || !TryReadReleaseVersion(tag, match.Groups[1].Value, out _, out var display))
+            throw new InvalidDataException("У страницы релиза GitHub не указана версия.");
+        RememberPublishedVersion(display);
     }
 
     public static string ReadChecksum(string text)
@@ -152,18 +238,23 @@ public sealed class GitHubUpdateService(HttpClient httpClient, string? cacheRoot
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 
-    private async Task<HttpResponseMessage> SendAsync(Uri uri, CancellationToken token)
+    private async Task<HttpResponseMessage> SendAsync(Uri uri, CancellationToken token, bool releasePage = false)
     {
         for (var attempt = 0; attempt < 6; attempt++)
         {
             if (uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length != 0
                 || !(uri.Host is "api.github.com" or "github.com" or "release-assets.githubusercontent.com" or "objects.githubusercontent.com"))
                 throw new InvalidDataException("Недопустимый адрес сервера обновлений.");
+            if (releasePage && (uri.Host != "github.com" || uri.Query.Length != 0 || uri.Fragment.Length != 0
+                || !(uri.AbsolutePath == RepositoryPath + "/releases/latest"
+                    || uri.AbsolutePath.StartsWith(RepositoryPath + "/releases/tag/", StringComparison.Ordinal))))
+                throw new InvalidDataException("Страница релиза не принадлежит Orbit Launcher.");
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
             request.Headers.UserAgent.ParseAdd("OrbitLauncher/" + DisplayVersion(CurrentVersion));
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(uri.Host == "api.github.com" ? "application/vnd.github+json" : "application/octet-stream"));
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(releasePage ? "text/html" : uri.Host == "api.github.com" ? "application/vnd.github+json" : "application/octet-stream"));
             if (uri.Host == "api.github.com") request.Headers.Add("X-GitHub-Api-Version", "2026-03-10");
             var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+            response.RequestMessage ??= request;
             if ((int)response.StatusCode is not (301 or 302 or 303 or 307 or 308)) return response;
             var location = response.Headers.Location;
             response.Dispose();

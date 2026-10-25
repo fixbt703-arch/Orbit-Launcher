@@ -16,7 +16,7 @@ public final class Agent {
         File jar = new File(Agent.class.getProtectionDomain().getCodeSource().getLocation().toURI());
         instrumentation.appendToBootstrapClassLoaderSearch(new JarFile(jar));
         instrumentation.addTransformer(new Textures());
-        System.out.println("[Orbit skins] Ely.by texture fallback enabled; Microsoft authentication unchanged.");
+        System.out.println("[Orbit skins] Texture-only Ely.by support enabled.");
     }
     public static final class Textures implements ClassFileTransformer {
         public byte[] transform(ClassLoader loader, String name, Class<?> type, ProtectionDomain domain, byte[] bytes) {
@@ -87,11 +87,12 @@ public final class Agent {
                         return new MethodVisitor(Opcodes.ASM9, base) {
                             public void visitCode() {
                                 super.visitCode();
-                                if (!unpack) return;
-                                handle("unpack");
+                                if (!unpack && !legacy) return;
+                                handle(legacy ? "legacy" : "unpack");
+                                if (legacy) super.visitInsn(Opcodes.ACONST_NULL);
                                 super.visitVarInsn(Opcodes.ALOAD, 1);
-                                super.visitLdcInsn(result);
-                                invoke("unpack");
+                                if (!legacy) super.visitLdcInsn(result);
+                                invoke(legacy ? "legacy" : "unpack");
                                 super.visitInsn(Opcodes.DUP);
                                 Label vanilla = new Label();
                                 super.visitJumpInsn(Opcodes.IFNULL, vanilla);

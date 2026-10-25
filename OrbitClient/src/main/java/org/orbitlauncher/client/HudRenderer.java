@@ -4,15 +4,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.resources.Identifier;
 import net.minecraft.client.gui.Hud;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public final class HudRenderer {
@@ -43,6 +40,7 @@ public final class HudRenderer {
     }
     private static void draw(GuiGraphicsExtractor g,boolean editor,int mouseX,int mouseY) {
         var mc=Minecraft.getInstance();
+        OrbitTheme.update();var a=OrbitTheme.options().hud;
         if(Boolean.getBoolean("orbit.client.refill-smoke"))RefillSmoke.frame(mc);
         bounds.clear();
         if((mc.player==null && !editor) || (!editor && (mc.gui.hud.isHidden() || mc.gui.screen() instanceof HudEditorScreen))) return;
@@ -52,11 +50,11 @@ public final class HudRenderer {
             var s=OrbitClient.config.state(m);
             if(!s.enabled || !m.hasHud()) continue;
             List<Row> rows=rows(m,editor);
-            int titleWidth=s.showTitle?OrbitFonts.strong().width(m.title())+17:0;
-            int naturalWidth=m==Module.KEYS?Math.max(108,titleWidth+s.padding*2):Math.max(90,Math.max(titleWidth,rows.stream().mapToInt(r->OrbitFonts.ui().width(r.text)+(r.hasIcon()?24:0)).max().orElse(70))+s.padding*2);
-            int w=s.panelWidth==0?Math.min(naturalWidth,210):s.panelWidth;
-            int header=s.showTitle?s.padding+13:s.padding;
-            int h=header+(m==Module.KEYS?(s.showMouse?75:50)+(s.showSpace?8:2):rows.stream().mapToInt(Row::height).sum()+Math.max(0,rows.size()-1)*s.rowSpacing)+s.padding;
+            int titleWidth=a.showTitle?OrbitFonts.strong().width(m.title())+17:0;
+            int naturalWidth=m==Module.KEYS?Math.max(108,titleWidth+a.padding*2):Math.max(90,Math.max(titleWidth,rows.stream().mapToInt(r->OrbitFonts.ui().width(r.text)+(r.hasIcon()?24:0)).max().orElse(70))+a.padding*2);
+            int w=a.panelWidth==0?Math.min(naturalWidth,210):a.panelWidth;
+            int header=a.showTitle?a.padding+13:a.padding;
+            int h=header+(m==Module.KEYS?(s.showMouse?75:50)+(s.showSpace?8:2):rows.stream().mapToInt(Row::height).sum()+Math.max(0,rows.size()-1)*a.rowSpacing)+a.padding;
             views.add(new View(m,s,rows,w,h));
             specs.add(new HudLayout.Spec(m.ordinal(),(int)Math.ceil(w*s.scale),(int)Math.ceil(h*s.scale),s.customPosition,s.x,s.y));
         }
@@ -69,29 +67,29 @@ public final class HudRenderer {
             bounds.put(m,new Bounds(b.x(),b.y(),b.width(),b.height()));
             float scale=s.scale*layout.scale();
             g.pose().pushMatrix(); g.pose().translate(b.x(),b.y()); g.pose().scale(scale,scale);
-            int bg=((int)(s.opacity*255)<<24)|(s.backgroundColor&0xFFFFFF);
-            if(s.background) {
-                if(s.hudStyle==0 || s.hudStyle==2)panel(g,0,0,w,h,s.hudStyle==2?(Math.min(90,(int)(s.opacity*255))<<24)|(s.backgroundColor&0xFFFFFF):bg);
-                if(!editor&&(s.hudBorder || s.hudStyle==1))outline(g,0,0,w,h,((int)(Math.max(.35,s.opacity)*255)<<24)|(s.hudStyle==1?ClientConfig.accent(s)&0xFFFFFF:OrbitTheme.BORDER&0xFFFFFF));
-                if(s.accentBar)OrbitTheme.rounded(g,3,8,2,Math.max(2,h-16),ClientConfig.accent(s));
+            int bg=((int)(a.opacity*255)<<24)|(OrbitTheme.CARD&0xFFFFFF);
+            if(a.background) {
+                if(a.hudStyle==0 || a.hudStyle==2)panel(g,0,0,w,h,a.hudStyle==2?(Math.min(90,(int)(a.opacity*255))<<24)|(OrbitTheme.CARD&0xFFFFFF):bg);
+                if(a.hudStyle!=3&&(a.hudBorder || a.hudStyle==1))outline(g,0,0,w,h,((int)(Math.max(.35,a.opacity)*255)<<24)|(a.hudStyle==1?OrbitTheme.PRIMARY&0xFFFFFF:OrbitTheme.BORDER&0xFFFFFF));
+                if(a.accentBar&&a.hudStyle!=3)OrbitTheme.accentLine(g,a.padding,a.showTitle?a.padding+10:2,Math.max(1,w-a.padding*2));
             }
-            int textAlpha=(int)(s.textOpacity*255)<<24;
-            if(s.showTitle) {
-                int headingColor=textAlpha|(s.accentTitle?ClientConfig.accent(s)&0xFFFFFF:s.textColor);
-                ModuleIcons.draw(g,m,s.padding,s.padding-2,12,headingColor);
-                g.text(OrbitFonts.strong(),OrbitFonts.strong().plainSubstrByWidth(m.title(),Math.max(1,w-s.padding*2-17)),s.padding+17,s.padding,headingColor,false);
+            int textAlpha=(int)(a.textOpacity*255)<<24;
+            if(a.showTitle) {
+                int headingColor=textAlpha|(a.accentTitle?OrbitTheme.PRIMARY&0xFFFFFF:(OrbitTheme.TEXT&0xFFFFFF));
+                ModuleIcons.draw(g,m,a.padding,a.padding-2,12,headingColor);
+                g.text(OrbitFonts.strong(),OrbitFonts.strong().plainSubstrByWidth(m.title(),Math.max(1,w-a.padding*2-17)),a.padding+17,a.padding,headingColor,false);
             }
-            int header=s.showTitle?s.padding+13:s.padding;
+            int header=a.showTitle?a.padding+13:a.padding;
             if(m==Module.KEYS) keys(g,s,w,header);
             else for(var row:view.rows) {
                 int iconWidth=row.hasIcon()?24:0;
-                String text=OrbitFonts.ui().plainSubstrByWidth(row.text,w-s.padding*2-iconWidth);
+                String text=OrbitFonts.ui().plainSubstrByWidth(row.text,w-a.padding*2-iconWidth);
                 int groupWidth=OrbitFonts.ui().width(text)+iconWidth;
-                int textX=s.alignment==1?(w-groupWidth)/2:s.alignment==2?w-s.padding-groupWidth:s.padding;
+                int textX=a.alignment==1?(w-groupWidth)/2:a.alignment==2?w-a.padding-groupWidth:a.padding;
                 if(!row.item.isEmpty())g.item(row.item,textX,header+1);
                 if(row.sprite!=null)g.blitSprite(RenderPipelines.GUI_TEXTURED,row.sprite,textX,header,18,18);
-                g.text(OrbitFonts.ui(),text,textX+iconWidth,header+(row.hasIcon()?5:0),textAlpha|s.textColor,false);
-                header+=row.height()+s.rowSpacing;
+                g.text(OrbitFonts.ui(),text,textX+iconWidth,header+(row.hasIcon()?5:0),textAlpha|(OrbitTheme.TEXT&0xFFFFFF),false);
+                header+=row.height()+a.rowSpacing;
             }
             if(editor) {
                 boolean highlighted=m.ordinal()==priority||bounds.get(m).contains(mouseX,mouseY);
@@ -137,12 +135,12 @@ public final class HudRenderer {
             key(g,x+38,y+50,34,"R "+OrbitClient.cps(true),o.keyUse.isDown(),s);
         }
         int spaceY=y+(s.showMouse?76:51);
-        if(s.showSpace) OrbitTheme.rounded(g,x,spaceY,72,3,o.keyJump.isDown()?ClientConfig.accent(s):0xFF344158);
+        if(s.showSpace) OrbitTheme.rounded(g,x,spaceY,72,3,o.keyJump.isDown()?OrbitTheme.PRIMARY:OrbitTheme.CONTROL);
     }
     private static void key(GuiGraphicsExtractor g,int x,int y,int w,String label,boolean down,ClientConfig.State s) {
-        panel(g,x,y,w,22,down?ClientConfig.accent(s):0xD5171E2E);
+        panel(g,x,y,w,22,down?OrbitTheme.PRIMARY:OrbitTheme.translucent(OrbitTheme.CARD,(int)(OrbitTheme.options().hud.opacity*255)));
         var font=OrbitFonts.ui();
-        g.centeredText(font,font.plainSubstrByWidth(label,w-4),x+w/2,y+7,down?OrbitTheme.ON_PRIMARY:OrbitTheme.TEXT);
+        g.centeredText(font,font.plainSubstrByWidth(label,w-4),x+w/2,y+7,OrbitTheme.translucent(down?OrbitTheme.ON_PRIMARY:OrbitTheme.TEXT,(int)(OrbitTheme.options().hud.textOpacity*255)));
     }
     public static void panel(GuiGraphicsExtractor g,int x,int y,int w,int h,int color) {
         OrbitTheme.rounded(g,x,y,w,h,color);
@@ -158,15 +156,8 @@ public final class HudRenderer {
             case PING -> List.of(PingMonitor.label(OrbitClient.config.state(m).showUnits));
             case CPS -> OrbitClient.config.state(m).splitCps?List.of("L: "+OrbitClient.cps(false),"R: "+OrbitClient.cps(true)):List.of(OrbitClient.cps(false)+" L  /  "+OrbitClient.cps(true)+" R");
             case COORDS -> {int d=OrbitClient.config.state(m).decimals;yield List.of(String.format(Locale.ROOT,"X %."+d+"f  Y %."+d+"f",p.getX(),p.getY()),String.format(Locale.ROOT,"Z %."+d+"f",p.getZ()));}
-            case DIRECTION -> List.of(p.getDirection().getName().toUpperCase(Locale.ROOT));
             case SPEED -> List.of(String.format(Locale.ROOT,"%.2f blocks/s",p.getDeltaMovement().horizontalDistance()*20));
-            case CLOCK -> {var s=OrbitClient.config.state(m);String pattern=(s.clock24?"HH":"hh")+":mm"+(s.showSeconds?":ss":"")+(s.clock24?"":" a");yield List.of(LocalTime.now().format(DateTimeFormatter.ofPattern(pattern,Locale.ROOT)));}
             case SESSION -> { long sec=Math.max(0,(System.nanoTime()-OrbitClient.sessionStart)/1_000_000_000L); yield List.of(String.format(Locale.ROOT,"%02d:%02d:%02d",sec/3600,sec/60%60,sec%60)); }
-            case SPRINT -> List.of(p.isSprinting()?OrbitClient.tr("Бег","Sprinting"):p.isCrouching()?OrbitClient.tr("Приседание","Sneaking"):OrbitClient.tr("Ходьба","Walking"));
-            case ITEM -> { var item=p.getMainHandItem(); yield item.isEmpty()?List.of(OrbitClient.tr("Пустая рука","Empty hand")):OrbitClient.config.state(m).showNames?List.of(item.getHoverName().getString(),durability(item,OrbitClient.config.state(m).showPercent)):List.of(durability(item,OrbitClient.config.state(m).showPercent)); }
-            case ARROWS -> List.of(Integer.toString(count(Items.ARROW)+count(Items.SPECTRAL_ARROW)+count(Items.TIPPED_ARROW)));
-            case RESOURCES -> List.of(OrbitClient.tr("Железо: ","Iron: ")+count(Items.IRON_INGOT)+"  "+OrbitClient.tr("Золото: ","Gold: ")+count(Items.GOLD_INGOT),
-                OrbitClient.tr("Алмазы: ","Diamonds: ")+count(Items.DIAMOND)+"  "+OrbitClient.tr("Изумруды: ","Emeralds: ")+count(Items.EMERALD));
             case REACH -> List.of(ClientFeatures.lastAttack==0 || System.nanoTime()-ClientFeatures.lastAttack>OrbitClient.config.state(m).reachSeconds*1_000_000_000L?"—":String.format(Locale.ROOT,"%.2f m",ClientFeatures.lastReach));
             case SERVER -> List.of(mc.getCurrentServer()==null?OrbitClient.tr("Одиночная игра","Singleplayer"):mc.getCurrentServer().ip);
             case MEMORY -> {var rt=Runtime.getRuntime();long used=rt.totalMemory()-rt.freeMemory();yield List.of(used/1048576+" / "+rt.maxMemory()/1048576+" MB");}
@@ -179,11 +170,6 @@ public final class HudRenderer {
             }
             default -> List.of();
         };
-    }
-    private static int count(Item item) {
-        var inventory=Minecraft.getInstance().player.getInventory();int total=0;
-        for(int i=0;i<inventory.getContainerSize();i++) {var stack=inventory.getItem(i);if(stack.is(item)) total+=stack.getCount();}
-        return total;
     }
     private static String durability(ItemStack item,boolean percent) {
         return item.isDamageableItem()?(percent?Math.round(100d*(item.getMaxDamage()-item.getDamageValue())/item.getMaxDamage())+"%":(item.getMaxDamage()-item.getDamageValue())+" / "+item.getMaxDamage()):"×"+item.getCount();

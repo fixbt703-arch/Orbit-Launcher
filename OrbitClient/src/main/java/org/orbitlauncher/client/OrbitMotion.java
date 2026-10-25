@@ -6,9 +6,10 @@ final class OrbitMotion {
     private long frame;
     OrbitMotion(){}
     OrbitMotion(boolean active){value=active?1:0;}
+    void snap(boolean active){value=active?1:0;frame=System.nanoTime();}
     float toward(boolean active) {
         long now=System.nanoTime();double dt=frame==0?0:Math.min(.1,(now-frame)/1e9);frame=now;
-        value+=((active?1:0)-value)*(1-Math.exp(-dt*21));
+        value+=((active?1:0)-value)*OrbitTheme.options().blend(dt,21);
         if(Math.abs(value-(active?1:0))<.001)value=active?1:0;
         return (float)value;
     }

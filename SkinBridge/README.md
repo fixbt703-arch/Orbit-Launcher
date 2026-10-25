@@ -1,11 +1,10 @@
 # Orbit Skin Bridge
 
-Texture-only Java agent for Microsoft-authenticated Minecraft sessions. It also
+Texture-only Java agent for Microsoft and offline Minecraft sessions. It also
 works with Vanilla; no mod loader or Ely.by login is needed to see other players' skins.
 
 The launcher enables it by default for licensed sessions. **Skins → Ely.by skins
-for other players** disables it for subsequent launches. An Ely.by account session
-continues to use the separate official authlib-injector integration instead.
+for other players** disables it for subsequent launches. Ely.by account sessions retain the official authlib-injector and add this texture adapter for verified HTTPS skin URLs. Plain offline sessions enable their own Ely skin fallback.
 If a modded instance already contains CustomSkinLoader, its existing configuration
 is used instead of installing a second texture interceptor. That mod and its settings
 are preserved. Disabled mod files and inactive Vanilla mods do not disable the bridge.
@@ -71,3 +70,12 @@ accounts, configuration and worlds are never copied.
 
 References: [Ely.by skin API](https://docs.ely.by/en/skins-system.html),
 [ASM](https://asm.ow2.io/).
+
+Bridge 1.0.2 adds an explicit offline-only includeViewer flag. Microsoft viewers remain excluded by default. OfflineViewerProbe and ElySessionProbe verify own skins and the official auth agent together on Authlib 9/10; IsolatedLoaderProbe covers both layouts. No login credentials are used by these probes.
+
+Bridge 1.0.3 accepts verified Ely-signed server textures before legacy Authlib's
+Mojang-only signature check. `LegacyServerElyProbe` rejects tampered signatures
+through vanilla and preserves Mojang and explicit server-property priority;
+`LegacyProbe` checks licensed/offline viewer rules. The 1.8.9 and 1.16.5 probes also
+pass on Minecraft's cached Java 8 runtime. `SkinManagerProbe` supports both 26.2
+and 26.3 via their actual services APIs. No authentication or session hook is added.

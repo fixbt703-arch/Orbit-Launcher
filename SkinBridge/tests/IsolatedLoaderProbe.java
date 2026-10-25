@@ -16,8 +16,9 @@ public class IsolatedLoaderProbe {
         }) {
             Class<?> profile = Class.forName("com.mojang.authlib.GameProfile", true, isolated);
             Object target = profile.getConstructor(UUID.class, String.class).newInstance(UUID.randomUUID(), "ErickSkrauch");
-            Object auth = Class.forName("com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService", true, isolated)
-                .getConstructor(Proxy.class).newInstance(Proxy.NO_PROXY);
+            Object auth;
+            try {auth=Class.forName("com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService", true, isolated).getConstructor(Proxy.class).newInstance(Proxy.NO_PROXY);}
+            catch(ClassNotFoundException modern){auth=Class.forName("com.mojang.authlib.services.MinecraftServicesDiscoveryService",true,isolated).getMethod("create",Proxy.class,boolean.class).invoke(null,Proxy.NO_PROXY,false);}
             Object service = auth.getClass().getMethod("createMinecraftSessionService").invoke(auth);
             Object property = service.getClass().getMethod("getPackedTextures", profile).invoke(service, target);
             if (property == null) throw new AssertionError("Texture fallback did not run across isolated loader");

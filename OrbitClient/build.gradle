@@ -1,7 +1,7 @@
 plugins {
     id 'net.fabricmc.fabric-loom' version '1.17.20'
 }
-version = '0.18.7'
+version = '0.24.1'
 evaluationDependsOn(':holdmyitems')
 group = 'org.orbitlauncher'
 base { archivesName = 'orbit-client' }
@@ -75,12 +75,31 @@ tasks.register('crosshairTest', JavaExec) {
 check.dependsOn crosshairTest
 // The deterministic layout harness is executed by layoutTest, not a JUnit runner.
 tasks.named('test') { failOnNoDiscoveredTests = false }
-tasks.register('glowContourTest', JavaExec) {
+tasks.register('moduleLibraryTest', JavaExec) {
     dependsOn testClasses
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'org.orbitlauncher.client.GlowContourTest'
+    mainClass = 'org.orbitlauncher.client.ModuleLibraryTest'
 }
-check.dependsOn glowContourTest
+check.dependsOn moduleLibraryTest
+
+tasks.register('interfaceOptionsTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.orbitlauncher.client.InterfaceOptionsTest'
+}
+check.dependsOn interfaceOptionsTest
+tasks.register('glowStyleTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.orbitlauncher.client.GlowStyleTest'
+}
+check.dependsOn glowStyleTest
+tasks.register('trajectoryPhysicsTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.orbitlauncher.client.TrajectoryPhysicsTest'
+}
+check.dependsOn trajectoryPhysicsTest
 loom {
     mods {
         orbit_client { sourceSet sourceSets.main }

@@ -23,7 +23,7 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
         if (instance.Loader is not ("Fabric" or "Forge" or "NeoForge" or "Quilt"))
             throw new InvalidOperationException(L("Выберите сборку с загрузчиком модов.", "Select an instance with a mod loader."));
         Directory.CreateDirectory(instance.ModsPath);
-        var files = Directory.EnumerateFiles(instance.ModsPath, "*.jar", SearchOption.TopDirectoryOnly).ToArray();
+        var files = Directory.EnumerateFiles(instance.ModsPath, "*.jar", SearchOption.TopDirectoryOnly).ToList();
         var checkedCount = 0;
         var replaced = 0;
         var installed = 0;
@@ -41,7 +41,7 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
         foreach (var file in files)
         {
             token.ThrowIfCancellationRequested();
-            progress.Report(new(0, files.Length, Path.GetFileName(file), L("Определяем установленные проекты…", "Identifying installed projects…"), RepairState.Checking));
+            progress.Report(new(0, files.Count, Path.GetFileName(file), L("Определяем установленные проекты…", "Identifying installed projects…"), RepairState.Checking));
             try
             {
                 var hash = await Sha1Async(file, token);
@@ -61,12 +61,14 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
             catch (Exception ex) { identificationErrors[file] = ex.Message; }
         }
 
-        foreach (var file in files)
+        // Newly installed dependencies join the queue so their own requirements are repaired.
+        for (var fileIndex = 0; fileIndex < files.Count; fileIndex++)
         {
+            var file = files[fileIndex];
             token.ThrowIfCancellationRequested();
             checkedCount++;
             var name = Path.GetFileName(file);
-            progress.Report(new(checkedCount, files.Length, name, L("Проверка файла и его версии…", "Checking file and version…"), RepairState.Checking));
+            progress.Report(new(checkedCount, files.Count, name, L("Проверка файла и его версии…", "Checking file and version…"), RepairState.Checking));
             try
             {
                 if (identificationErrors.TryGetValue(file, out var identificationError))
@@ -77,13 +79,13 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
                         string.Equals(Path.GetFullPath(Path.Combine(instance.DirectoryPath, item.RelativePath)), file, StringComparison.OrdinalIgnoreCase));
                     if (curseRecord is not null && _curseForge.IsConfigured)
                     {
-                        var state = await RepairCurseForgeFileAsync(instance, file, curseRecord, backupRoot, progress, checkedCount, files.Length, token);
+                        var state = await RepairCurseForgeFileAsync(instance, file, curseRecord, backupRoot, progress, checkedCount, files.Count, token);
                         if (state == RepairState.Replaced) replaced++;
                         if (state == RepairState.NeedsAttention) attention++;
                         continue;
                     }
                     attention++;
-                    progress.Report(new(checkedCount, files.Length, name, L("Не найден в доступном каталоге. Файл оставлен без изменений.", "Not found in an available catalog. The file was left unchanged."), RepairState.NeedsAttention));
+                    progress.Report(new(checkedCount, files.Count, name, L("Не найден в доступном каталоге. Файл оставлен без изменений.", "Not found in an available catalog. The file was left unchanged."), RepairState.NeedsAttention));
                     continue;
                 }
                 var projectId = RequiredString(current, "project_id");
@@ -92,13 +94,13 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
                 if (projectCounts.GetValueOrDefault(projectId) > 1)
                 {
                     attention++;
-                    progress.Report(new(checkedCount, files.Length, name, L("Несколько включённых файлов одного мода. Отключите дубликаты вручную.", "Multiple enabled files for this mod. Disable duplicates manually."), RepairState.NeedsAttention));
+                    progress.Report(new(checkedCount, files.Count, name, L("Несколько включённых файлов одного мода. Отключите дубликаты вручную.", "Multiple enabled files for this mod. Disable duplicates manually."), RepairState.NeedsAttention));
                     continue;
                 }
                 if (!processedProjects.Add(projectId))
                 {
                     attention++;
-                    progress.Report(new(checkedCount, files.Length, name, L("Обнаружен второй файл того же проекта. Проверьте дубликаты вручную.", "Another file from this project was found. Review duplicates manually."), RepairState.NeedsAttention));
+                    progress.Report(new(checkedCount, files.Count, name, L("Обнаружен второй файл того же проекта. Проверьте дубликаты вручную.", "Another file from this project was found. Review duplicates manually."), RepairState.NeedsAttention));
                     continue;
                 }
 
@@ -106,7 +108,7 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
                 var compatible = Supports(chosen, instance);
                 if (!compatible)
                 {
-                    progress.Report(new(checkedCount, files.Length, name, L("Ищем выпуск для выбранной сборки…", "Finding a release for this instance…"), RepairState.Checking));
+                    progress.Report(new(checkedCount, files.Count, name, L("Ищем выпуск для выбранной сборки…", "Finding a release for this instance…"), RepairState.Checking));
                     using var versions = await GetCompatibleVersionsAsync(projectId, instance, token);
                     var selected = versions.RootElement.EnumerateArray()
                         .Where(v => Supports(v, instance))
@@ -116,7 +118,7 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
                     if (chosen.ValueKind != JsonValueKind.Object)
                     {
                         attention++;
-                        progress.Report(new(checkedCount, files.Length, name, L("Совместимый выпуск не найден. Старый файл сохранён.", "No compatible release found. The old file was kept."), RepairState.NeedsAttention));
+                        progress.Report(new(checkedCount, files.Count, name, L("Совместимый выпуск не найден. Старый файл сохранён.", "No compatible release found. The old file was kept."), RepairState.NeedsAttention));
                         continue;
                     }
                     var candidate = PrimaryFile(chosen);
@@ -129,10 +131,10 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
                     if (!string.Equals(file, destination, StringComparison.OrdinalIgnoreCase) && File.Exists(destination))
                     {
                         attention++;
-                        progress.Report(new(checkedCount, files.Length, name, L("Совместимый JAR уже есть в папке. Проверьте дубликаты вручную.", "The compatible JAR is already in the folder. Review duplicates manually."), RepairState.NeedsAttention));
+                        progress.Report(new(checkedCount, files.Count, name, L("Совместимый JAR уже есть в папке. Проверьте дубликаты вручную.", "The compatible JAR is already in the folder. Review duplicates manually."), RepairState.NeedsAttention));
                         continue;
                     }
-                    progress.Report(new(checkedCount, files.Length, name, L("Загрузка и проверка SHA-512…", "Downloading and verifying SHA-512…"), RepairState.Checking));
+                    progress.Report(new(checkedCount, files.Count, name, L("Загрузка и проверка SHA-512…", "Downloading and verifying SHA-512…"), RepairState.Checking));
                     var staged = await DownloadVerifiedAsync(candidate, instance.ModsPath, token);
                     try
                     {
@@ -144,21 +146,21 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
                     }
                     finally { if (File.Exists(staged)) File.Delete(staged); }
                     replaced++;
-                    progress.Report(new(checkedCount, files.Length, name, LocalizationService.IsEnglish
+                    progress.Report(new(checkedCount, files.Count, name, LocalizationService.IsEnglish
                         ? $"Replaced with {destinationName}. Previous file saved in .orbit/repair-backups."
                         : $"Заменён на {destinationName}. Предыдущий файл сохранён в .orbit/repair-backups.", RepairState.Replaced));
                     try { await UpdateRegistryAsync(instance, projectId, destination); }
                     catch (Exception ex)
                     {
                         attention++;
-                        progress.Report(new(checkedCount, files.Length, name, LocalizationService.IsEnglish
+                        progress.Report(new(checkedCount, files.Count, name, LocalizationService.IsEnglish
                             ? $"File replaced, but the catalog record could not be updated: {ex.Message}"
                             : $"Файл заменён, но не удалось обновить запись каталога: {ex.Message}", RepairState.NeedsAttention));
                     }
                 }
                 else
                 {
-                    progress.Report(new(checkedCount, files.Length, name, L("Версия игры и загрузчик совместимы.", "Game and loader versions are compatible."), RepairState.Compatible));
+                    progress.Report(new(checkedCount, files.Count, name, L("Версия игры и загрузчик совместимы.", "Game and loader versions are compatible."), RepairState.Compatible));
                 }
 
                 // The selected version may require other Modrinth projects. Install only missing projects;
@@ -169,14 +171,17 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
                     {
                         if (RequiredString(dependency, "dependency_type") != "required") continue;
                         var dependencyId = RequiredString(dependency, "project_id");
-                        if (dependencyId.Length == 0) continue;
                         var requiredVersionId = RequiredString(dependency, "version_id");
-                        if (knownProjects.Contains(dependencyId))
-                        {
-                            continue;
-                        }
                         try
                         {
+                            if (dependencyId.Length == 0 && requiredVersionId.Length > 0)
+                            {
+                                using var metadata = await GetVersionByIdAsync(requiredVersionId, token);
+                                dependencyId = RequiredString(metadata.RootElement, "project_id");
+                            }
+                            if (dependencyId.Length == 0) throw new InvalidDataException(L("Каталог не вернул ID зависимости.", "The catalog did not return a dependency project ID."));
+                            if (knownProjects.Contains(dependencyId)) continue;
+                            if (installed >= 512) throw new InvalidDataException(L("Слишком большое дерево зависимостей модов.", "The mod dependency tree is too large."));
                             using var versions = requiredVersionId.Length > 0
                                 ? await GetVersionByIdAsync(requiredVersionId, token)
                                 : await GetCompatibleVersionsAsync(dependencyId, instance, token);
@@ -196,13 +201,16 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
                             try { File.Move(staged, Path.Combine(instance.ModsPath, dependencyName)); }
                             finally { if (File.Exists(staged)) File.Delete(staged); }
                             knownProjects.Add(dependencyId);
+                            var dependencyPath = Path.Combine(instance.ModsPath, dependencyName);
+                            files.Add(dependencyPath);
+                            identified[dependencyPath] = version.Clone();
                             installed++;
-                            progress.Report(new(checkedCount, files.Length, dependencyName, L("Установлена обязательная зависимость.", "Required dependency installed."), RepairState.Installed));
+                            progress.Report(new(checkedCount, files.Count, dependencyName, L("Установлена обязательная зависимость.", "Required dependency installed."), RepairState.Installed));
                             try { await UpdateRegistryAsync(instance, dependencyId, Path.Combine(instance.ModsPath, dependencyName)); }
                             catch (Exception ex)
                             {
                                 attention++;
-                                progress.Report(new(checkedCount, files.Length, dependencyName, LocalizationService.IsEnglish
+                                progress.Report(new(checkedCount, files.Count, dependencyName, LocalizationService.IsEnglish
                                     ? $"Installed, but the catalog record could not be updated: {ex.Message}"
                                     : $"Установлена, но не удалось обновить запись каталога: {ex.Message}", RepairState.NeedsAttention));
                             }
@@ -211,7 +219,7 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
                         catch (Exception ex)
                         {
                             attention++;
-                            progress.Report(new(checkedCount, files.Length, name, LocalizationService.IsEnglish
+                            progress.Report(new(checkedCount, files.Count, name, LocalizationService.IsEnglish
                                 ? $"Dependency {dependencyId}: {ex.Message}." : $"Зависимость {dependencyId}: {ex.Message}.", RepairState.NeedsAttention));
                         }
                     }
@@ -221,7 +229,7 @@ public sealed partial class ModCompatibilityRepairService(HttpClient httpClient,
             catch (Exception ex)
             {
                 attention++;
-                progress.Report(new(checkedCount, files.Length, name, LocalizationService.IsEnglish
+                progress.Report(new(checkedCount, files.Count, name, LocalizationService.IsEnglish
                     ? $"Repair failed: {ex.Message}" : $"Не удалось исправить: {ex.Message}", RepairState.Failed));
             }
         }

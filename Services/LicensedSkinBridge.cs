@@ -16,7 +16,7 @@ namespace OrbitLauncher.Services;
 /// <summary>Embedded texture-only Java agent. Never configures another authentication server.</summary>
 public static class LicensedSkinBridge
 {
-    public const string Version = "1.0.1";
+    public const string Version = "1.0.3";
     private const string ResourceName = "OrbitLauncher.SkinBridge.Jar";
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static readonly Lazy<byte[]> Payload = new(() =>
@@ -51,15 +51,16 @@ public static class LicensedSkinBridge
         }
         finally { Gate.Release(); }
     }
-    public static MArgument[] Arguments(string path, string viewerUuid, string viewerName)
+    public static MArgument[] Arguments(string path, string viewerUuid, string viewerName, bool includeViewer = false)
     {
         if (!Guid.TryParse(viewerUuid, out var viewer)) throw new InvalidDataException("Microsoft не вернул корректный UUID игрока.");
         if (!Regex.IsMatch(viewerName ?? "", "^[A-Za-z0-9_]{3,16}$")) throw new InvalidDataException("Microsoft не вернул корректный ник игрока.");
-        return new[] {
+        var arguments = new[] {
             new MArgument("-javaagent:" + Path.GetFullPath(path)),
             new MArgument("-Dorbit.skinbridge.viewer=" + viewer.ToString("N")),
             new MArgument("-Dorbit.skinbridge.viewerName=" + viewerName)
         };
+        return includeViewer ? arguments.Append(new MArgument("-Dorbit.skinbridge.includeViewer=true")).ToArray() : arguments;
     }
 
     public static bool HasCustomSkinLoader(GameInstance instance)

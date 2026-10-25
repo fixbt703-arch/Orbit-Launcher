@@ -14,6 +14,15 @@ public final class ClientConfig {
     public int layoutVersion;
     public Waypoint waypoint;
     public boolean hudSnap=true;
+    public InterfaceOptions interfaceOptions=new InterfaceOptions();
+    public java.util.Map<String,PanelPosition> clientPanels=new java.util.HashMap<>();
+    public int clientPanelViewportVersion;
+    public static class PanelPosition {
+        public double x,y;
+        public boolean collapsed;
+        public PanelPosition(){}
+        PanelPosition(double x,double y,boolean collapsed){this.x=x;this.y=y;this.collapsed=collapsed;}
+    }
     public static final int[] COLORS = {0xFFB39CFF,0xFF79D7EF,0xFF74B9FF,0xFFF4CD87,0xFFFF91AA,0xFFF4F6FF};
     public static class State {
         public boolean enabled;
@@ -25,12 +34,12 @@ public final class ClientConfig {
         public int hudStyle, panelWidth, rowSpacing;
         public int backgroundColor=0x171E2E, textColor=0xF4F6FF;
         public float textOpacity=1;
-        public boolean showMouse=true, showSpace=true, showSeconds=true, showPercent;
+        public boolean showMouse=true, showSpace=true, showPercent;
         public boolean crosshairDot, crosshairOutline=true;
         public int decimals=1, crosshairSize=5, crosshairGap=2, crosshairThickness=1;
         public float zoomFactor=4;
         public int customColor=-1, padding=8, alignment=0, effectsLimit=8, reachSeconds=5;
-        public boolean showUnits=true, splitCps, showNames=true, clock24=true;
+        public boolean showUnits=true, splitCps;
         public int crosshairShape=0, dotSize=1, outlineWidth=1, dynamicGap=3;
         public boolean crosshairDynamic, crosshairThirdPerson, crosshairHideMenus=true;
         public int crosshairMode=0, crosshairPreset=0, crosshairColorMode=0, crosshairScale=0;
@@ -47,15 +56,19 @@ public final class ClientConfig {
         public boolean skinHead=true,skinBody=true,skinArms=true,skinLegs=true,skinFirstPerson=true;
         public float skinThickness=1.1f;
         public int skinDistance=24,glintColor=0xB9B8FF;
-        public float glintOpacity=.7f;
+        public float glintOpacity=.45f;
         public boolean glintItems=true,glintArmor=true;
         public boolean glowOutline=true,glowMatchGlint=true,glowFirstPerson=true,glowThirdPerson=true,glowInventory;
-        public boolean glowRainbow,glowPulse;
+        public boolean glowRainbow,glowPulse=true;
         public int glowOutlineColor=0xB9B8FF;
-        public float glowOutlineOpacity=.8f,glowWidth=1.6f,glowSoftness=.65f;
+        public float glowOutlineOpacity=.7f,glowWidth=1.25f,glowSoftness=.8f;
         public boolean hmiInspect=true,hmiMainHand=true,hmiOffHand=true,hmiShowHands=true,hmiBlocks3d=true;
         public boolean hmiParticles=true,hmiCameraMotion=true,hmiVanillaCombat;
         public float hmiOffsetX,hmiOffsetY,hmiOffsetZ,hmiScale=1,hmiMotion=1;
+        public boolean trajectoryBow=true,trajectoryCrossbow=true,trajectoryPearl=true,trajectorySnowball=true,trajectoryEgg=true,trajectoryPotion=true,trajectoryTrident=true,trajectoryExperience=true;
+        public boolean trajectoryTheme=true,trajectoryMarker=true,trajectoryFade=true,trajectoryOffhand=true,trajectoryChargeOnly=true,trajectoryHideMenus=true,trajectoryThirdPerson=true;
+        public int trajectoryColor=0x49D4E8,trajectoryRange=128;
+        public float trajectoryOpacity=.85f,trajectoryWidth=1.5f,trajectoryMarkerSize=.18f;
         public int hitboxColor=0xB9B8FF,hitboxTargetColor=0x48D6C5,hitboxDistance=48,hitboxStyle;
         public float hitboxOpacity=.65f,hitboxTargetOpacity=1,hitboxWidth=1.5f,hitboxFillOpacity=.1f;
         public boolean hitboxPlayers=true,hitboxHostile=true,hitboxPassive=true,hitboxOther;
@@ -94,6 +107,12 @@ public final class ClientConfig {
                 catch(IOException ignored) { }
             }
         }
+        if(config.interfaceOptions==null)config.interfaceOptions=new InterfaceOptions();
+        config.interfaceOptions.sanitize();
+        if(config.clientPanels==null)config.clientPanels=new java.util.HashMap<>();
+        if(config.clientPanelViewportVersion<1){config.clientPanels.clear();config.clientPanelViewportVersion=1;}
+        config.clientPanels.entrySet().removeIf(e->e.getValue()==null);
+        for(var p:config.clientPanels.values()){p.x=finite(p.x,0,1,0);p.y=finite(p.y,0,1,0);}
         for (Module module:Module.values()) {
             State s=config.state(module);
             s.criticalScale=Math.clamp(s.criticalScale,50,100);s.criticalOffset=Math.clamp(s.criticalOffset,0,24);
@@ -129,9 +148,9 @@ public final class ClientConfig {
             s.enemyColor=Math.clamp(s.enemyColor,0,0xFFFFFF);s.friendlyColor=Math.clamp(s.friendlyColor,0,0xFFFFFF);
             s.chunkRenderDistance=Math.clamp(s.chunkRenderDistance,8,32);
             s.skinThickness=(float)finite(s.skinThickness,1,1.5,1.1);s.skinDistance=Math.clamp(s.skinDistance,8,64);
-            s.glintColor=Math.clamp(s.glintColor,0,0xFFFFFF);s.glintOpacity=(float)finite(s.glintOpacity,0,1,.7);
+            s.glintColor=Math.clamp(s.glintColor,0,0xFFFFFF);s.glintOpacity=(float)finite(s.glintOpacity,0,1,.45);
             s.glowOutlineColor=Math.clamp(s.glowOutlineColor,0,0xFFFFFF);
-            s.glowOutlineOpacity=(float)finite(s.glowOutlineOpacity,0,1,.8);s.glowWidth=(float)finite(s.glowWidth,.5,4,1.6);s.glowSoftness=(float)finite(s.glowSoftness,0,1,.65);
+            s.glowOutlineOpacity=(float)finite(s.glowOutlineOpacity,0,1,.7);s.glowWidth=(float)finite(s.glowWidth,.5,4,1.25);s.glowSoftness=(float)finite(s.glowSoftness,0,1,.8);
             s.hitboxColor=Math.clamp(s.hitboxColor,0,0xFFFFFF);s.hitboxTargetColor=Math.clamp(s.hitboxTargetColor,0,0xFFFFFF);
             s.hitboxOpacity=(float)finite(s.hitboxOpacity,0,1,.65);s.hitboxTargetOpacity=(float)finite(s.hitboxTargetOpacity,0,1,1);
             s.hitboxWidth=(float)finite(s.hitboxWidth,.5,4,1.5);s.hitboxFillOpacity=(float)finite(s.hitboxFillOpacity,0,.5,.1);
@@ -142,6 +161,9 @@ public final class ClientConfig {
             s.hitboxDashCount=Math.clamp(s.hitboxDashCount,4,32);s.hitboxMinDistance=Math.clamp(s.hitboxMinDistance,0,s.hitboxDistance-1);
             s.hitboxTargetWidth=(float)finite(s.hitboxTargetWidth,.5,4,2.5);s.hitboxTargetFillOpacity=(float)finite(s.hitboxTargetFillOpacity,0,.5,.15);
             s.hitboxCornerLength=(float)finite(s.hitboxCornerLength,.08,.45,.22);s.hitboxLookLength=(float)finite(s.hitboxLookLength,.25,6,1.5);
+            s.trajectoryColor=Math.clamp(s.trajectoryColor,0,0xFFFFFF);s.trajectoryRange=Math.clamp(s.trajectoryRange,16,256);
+            s.trajectoryOpacity=(float)finite(s.trajectoryOpacity,.1,1,.85);s.trajectoryWidth=(float)finite(s.trajectoryWidth,.5,4,1.5);
+            s.trajectoryMarkerSize=(float)finite(s.trajectoryMarkerSize,.08,.5,.18);
             s.hitboxFadeStart=(float)finite(s.hitboxFadeStart,.1,.95,.65);
             if(s.crosshairPixels==null || !s.crosshairPixels.matches("[01]{225}"))s.crosshairPixels="";
         }
@@ -152,9 +174,15 @@ public final class ClientConfig {
     }
     static ClientConfig parse(com.google.gson.JsonElement tree) {
         if(tree.isJsonObject()) {
+            var ui=tree.getAsJsonObject().get("interfaceOptions");
+            if(ui!=null&&ui.isJsonObject()&&!ui.getAsJsonObject().has("themeSetVersion")){
+                var settings=ui.getAsJsonObject();var old=settings.get("theme");
+                if(old!=null&&old.isJsonPrimitive()&&old.getAsJsonPrimitive().isNumber()){
+                    int previous=old.getAsInt();settings.addProperty("theme",switch(previous){case 1->4;case 2->2;case 3->3;case 4->1;default->0;});
+                }
+                settings.addProperty("themeSetVersion",1);
+            }
             var modules=tree.getAsJsonObject().getAsJsonObject("modules");
-            // Remove the retired entry before Gson reads the EnumMap, preserving every other setting.
-            if(modules!=null)modules.remove("HP_INDICATOR");
             if(modules!=null&&modules.has("CROSSHAIR")&&modules.get("CROSSHAIR").isJsonObject()){
                 var crosshair=modules.getAsJsonObject("CROSSHAIR");
                 if(crosshair.has("criticalWidth")&&!crosshair.has("criticalScale")){
@@ -167,6 +195,10 @@ public final class ClientConfig {
                 var old=modules.remove("COOL_ANIM");
                 if(!modules.has("HOLD_MY_ITEMS")) modules.add("HOLD_MY_ITEMS",old);
             }
+            // Migrate aliases before discarding unknown enum keys, preserving surviving settings.
+            if(modules!=null)modules.keySet().removeIf(name->{
+                try{Module.valueOf(name);return false;}catch(IllegalArgumentException e){return true;}
+            });
         }
         return JSON.fromJson(tree,ClientConfig.class);
     }

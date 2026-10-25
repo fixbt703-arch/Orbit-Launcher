@@ -93,9 +93,10 @@ public partial class VersionPickerWindow : Window
 		{
 			string arg = GameVersionCombo.SelectedValue?.ToString() ?? "";
 			string arg2 = LoaderCombo.SelectedValue?.ToString() ?? "";
-			_allVersions = await _fetch(arg, arg2, token);
+			var versions = await _fetch(arg, arg2, token);
 			if (!token.IsCancellationRequested)
 			{
+				_allVersions = versions;
 				ApplyChannelFilter();
 			}
 		}

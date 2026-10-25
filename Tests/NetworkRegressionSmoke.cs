@@ -16,6 +16,86 @@ internal static class NetworkRegressionSmoke
         async Task Test(string name, Func<Task> action) { await action(); count++; Console.WriteLine("PASS network: " + name); }
         void Require(bool condition, string message) { if (!condition) throw new Exception(message); }
         HttpResponseMessage Good(string text = "success") => new(HttpStatusCode.OK) { Content = new StringContent(text) };
+        await Test("default handshake fallback fits inside a skin request deadline", async () =>
+        {
+            using var http = new HttpClient(new NetworkRecoveryHandler(
+                new Handler(async (_, token) => { await Task.Delay(30000, token); return Good(); }),
+                new Handler((_, _) => Task.FromResult(Good()))));
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(7));
+            Require(await http.GetStringAsync("https://fixture.invalid/skin", deadline.Token) == "success", "skin deadline prevented fallback");
+        });
+        await Test("HTTPS through an HTTP proxy preserves the native TLS ClientHello", async () =>
+        {
+            using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var previousProxy = HttpClient.DefaultProxy;
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                HttpClient.DefaultProxy = new WebProxy(new Uri("http://127.0.0.1:" + ((IPEndPoint)listener.LocalEndpoint).Port));
+                var capture = Task.Run(async () =>
+                {
+                    using var socket = await listener.AcceptTcpClientAsync(deadline.Token);
+                    await using var wire = socket.GetStream();
+                    var request = new List<byte>(); var one = new byte[1];
+                    while (request.Count < 8192)
+                    {
+                        await wire.ReadExactlyAsync(one, deadline.Token); request.Add(one[0]);
+                        if (request.Count >= 4 && request.TakeLast(4).SequenceEqual(new byte[] { 13, 10, 13, 10 })) break;
+                    }
+                    Require(Encoding.ASCII.GetString(request.ToArray()).StartsWith("CONNECT orbit-alt9.invalid:443 "), "proxy CONNECT changed");
+                    await wire.WriteAsync(Encoding.ASCII.GetBytes("HTTP/1.1 200 Connection established\r\n\r\n"), deadline.Token);
+                    var hello = new byte[65536]; await wire.ReadExactlyAsync(hello.AsMemory(0, 5), deadline.Token);
+                    int length = hello[3] * 256 + hello[4];
+                    await wire.ReadExactlyAsync(hello.AsMemory(5, length), deadline.Token);
+                    Require(length == 4 + hello[6] * 65536 + hello[7] * 256 + hello[8]
+                        && Encoding.ASCII.GetString(hello, 0, length + 5).Contains("orbit-alt9.invalid"), "TLS record or SNI was damaged");
+                    deadline.Cancel();
+                });
+                using var http = LauncherNetwork.CreateClient();
+                try { await http.GetAsync("https://orbit-alt9.invalid/", deadline.Token); }
+                catch (HttpRequestException) { }
+                catch (OperationCanceledException) when (deadline.IsCancellationRequested) { }
+                await capture;
+            }
+            finally { HttpClient.DefaultProxy = previousProxy; }
+        });
+        await Test("a slow login keeps its original deadline and is sent exactly once", async () =>
+        {
+            int calls = 0, fallback = 0;
+            using var http = new HttpClient(new NetworkRecoveryHandler(
+                new Handler(async (request, token) => { calls++; await Task.Delay(4500, token); return Good(await request.Content!.ReadAsStringAsync(token)); }),
+                new Handler((_, _) => { fallback++; return Task.FromResult(Good()); })));
+            using var body = new StringContent("fixture-login");
+            using var response = await http.PostAsync("https://fixture.invalid/login", body);
+            Require(await response.Content.ReadAsStringAsync() == "fixture-login" && calls == 1 && fallback == 0 && await body.ReadAsStringAsync() == "fixture-login", "slow login cancelled, changed or replayed");
+        });
+        await Test("the compatible connection still rejects an untrusted TLS certificate", async () =>
+        {
+            using var key = RSA.Create(2048);
+            var certificateRequest = new System.Security.Cryptography.X509Certificates.CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            var names = new System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder(); names.AddIpAddress(IPAddress.Loopback);
+            certificateRequest.CertificateExtensions.Add(names.Build());
+            using var generated = certificateRequest.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+            using var certificate = new System.Security.Cryptography.X509Certificates.X509Certificate2(
+                generated.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx), "",
+                System.Security.Cryptography.X509Certificates.X509KeyStorageFlags.UserKeySet);
+            using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0); listener.Start();
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var server = Task.Run(async () =>
+            {
+                using var socket = await listener.AcceptTcpClientAsync(deadline.Token);
+                using var tls = new System.Net.Security.SslStream(socket.GetStream());
+                try { await tls.AuthenticateAsServerAsync(new System.Net.Security.SslServerAuthenticationOptions { ServerCertificate = certificate }, deadline.Token); }
+                catch (Exception ex) when (ex is IOException or System.Security.Authentication.AuthenticationException) { }
+            });
+            using var http = LauncherNetwork.CreateClient();
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://127.0.0.1:" + ((IPEndPoint)listener.LocalEndpoint).Port + "/login") { Content = new StringContent("fixture-login") };
+            request.Options.Set(LauncherNetwork.CompatibilityTransportKey, true);
+            try { using var response = await http.SendAsync(request, deadline.Token); throw new Exception("untrusted TLS certificate accepted"); }
+            catch (HttpRequestException ex) when (ex.InnerException is System.Security.Authentication.AuthenticationException) { }
+            await server;
+        });
         await Test("a stalled handshake retries via compatibility transport with HTTP/1.1", async () =>
         {
             int primary = 0, compatibility = 0;

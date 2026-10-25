@@ -4,7 +4,7 @@ using System.Security.Authentication;
 
 namespace OrbitLauncher.Services;
 
-/// <summary>Bounded HTTP/1.1 connections with a TLS 1.2 retry for incompatible packet filters.</summary>
+/// <summary>Bounded HTTP/1.1 connections with TLS 1.2 recovery.</summary>
 public static class LauncherNetwork
 {
     public static readonly HttpRequestOptionsKey<bool> CompatibilityTransportKey = new("OrbitCompatibilityTransport");
@@ -51,17 +51,19 @@ public static class LauncherNetwork
         { Timeout = TimeSpan.FromMinutes(15), DefaultRequestVersion = HttpVersion.Version11,
             DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact };
     }
+
 }
 
 public sealed class NetworkRecoveryHandler : HttpMessageHandler
 {
     private readonly HttpMessageInvoker _primary, _compatibility;
-    private readonly TimeSpan _headersTimeout, _idleTimeout;
+    private readonly TimeSpan _headersTimeout, _primaryHeadersTimeout, _idleTimeout;
     public NetworkRecoveryHandler(HttpMessageHandler primary, HttpMessageHandler compatibility,
         TimeSpan? headersTimeout = null, TimeSpan? idleTimeout = null)
     {
         _primary = new(primary, true); _compatibility = new(compatibility, true);
         _headersTimeout = headersTimeout ?? TimeSpan.FromSeconds(12);
+        _primaryHeadersTimeout = headersTimeout ?? TimeSpan.FromSeconds(4);
         _idleTimeout = idleTimeout ?? TimeSpan.FromSeconds(20);
     }
 
@@ -71,7 +73,8 @@ public sealed class NetworkRecoveryHandler : HttpMessageHandler
         for (var attempt = 0; ; attempt++)
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-            timeout.CancelAfter(_headersTimeout);
+            bool useCompatibility = attempt > 0 || request.Options.TryGetValue(LauncherNetwork.CompatibilityTransportKey, out var preferred) && preferred;
+            timeout.CancelAfter(retryable && !useCompatibility ? _primaryHeadersTimeout : _headersTimeout);
             // Never replay login, upload, or other requests which change remote state.
             using var copy = new HttpRequestMessage(request.Method, request.RequestUri)
             { Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact };
@@ -80,8 +83,7 @@ public sealed class NetworkRecoveryHandler : HttpMessageHandler
             HttpResponseMessage? response = null;
             try
             {
-                bool useCompatibility = request.Options.TryGetValue(LauncherNetwork.CompatibilityTransportKey, out var preferred) && preferred;
-                response = await (attempt == 0 && !useCompatibility ? _primary : _compatibility).SendAsync(copy, timeout.Token).ConfigureAwait(false);
+                response = await (useCompatibility ? _compatibility : _primary).SendAsync(copy, timeout.Token).ConfigureAwait(false);
                 if (retryable && attempt == 0 && (response.StatusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.BadGateway
                     or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout))
                 { response.Dispose(); await Task.Delay(250, token).ConfigureAwait(false); continue; }

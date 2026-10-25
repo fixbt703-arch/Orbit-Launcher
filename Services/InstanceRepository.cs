@@ -117,13 +117,15 @@ public sealed class InstanceRepository
 		{
 			throw new InvalidOperationException("У сборки не указан каталог.");
 		}
-		if (!string.Equals(Path.GetDirectoryName(Path.GetFullPath(instance.DirectoryPath).TrimEnd(Path.DirectorySeparatorChar)), _instancesRoot, StringComparison.OrdinalIgnoreCase))
+		if (!string.Equals(Path.GetDirectoryName(Path.GetFullPath(instance.DirectoryPath).TrimEnd(Path.DirectorySeparatorChar)), _instancesRoot, StringComparison.OrdinalIgnoreCase)
+			|| (Directory.Exists(instance.DirectoryPath) && (File.GetAttributes(instance.DirectoryPath) & FileAttributes.ReparsePoint) != 0))
 			throw new IOException("Сборка находится вне папки instances.");
+		if (!Directory.Exists(instance.DirectoryPath))
+			throw new DirectoryNotFoundException("Каталог сборки не найден.");
 		await Task.Run(delegate
 		{
 			EnsureFriendlyDirectory(instance, _instancesRoot);
 		});
-		Directory.CreateDirectory(instance.DirectoryPath);
 		string destination = Path.Combine(instance.DirectoryPath, "instance.json");
 		await AtomicJsonFile.SaveAsync(destination, instance);
 	}
@@ -199,7 +201,7 @@ public sealed class InstanceRepository
 			}
 			GameInstance imported = instance.CloneDefinition();
 			imported.Name = instance.Name + " — импорт";
-			imported.IconFile = Path.GetFileName(instance.IconFile ?? string.Empty);
+			imported.IconFile = ImportedIconPath(contentRoot, instance.IconFile);
 			imported.JavaPath = string.Empty;
 			imported.LaunchVersionId = string.Empty;
 			return await CommitNewAsync(imported, contentRoot!);
@@ -224,6 +226,19 @@ public sealed class InstanceRepository
 	private static void CopyDirectory(string source, string destination, bool skipDefinition)
 	{
 		InstanceArchive.Copy(source, destination, skipDefinition);
+	}
+
+	private static string ImportedIconPath(string contentRoot, string? icon)
+	{
+		if (string.IsNullOrWhiteSpace(icon) || Path.IsPathRooted(icon)) return string.Empty;
+		try
+		{
+			var root = Path.GetFullPath(contentRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+			var path = Path.GetFullPath(Path.Combine(root, icon));
+			return path.StartsWith(root, StringComparison.OrdinalIgnoreCase) && File.Exists(path)
+				? Path.GetRelativePath(root, path) : string.Empty;
+		}
+		catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException) { return string.Empty; }
 	}
 
 	private static void EnsureFriendlyDirectory(GameInstance instance, string? instancesRoot = null)

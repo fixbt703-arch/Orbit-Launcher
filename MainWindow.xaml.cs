@@ -178,6 +178,7 @@ public partial class MainWindow : Window
 		LocalizationService.SetLanguage(_settings.Language);
 		LocalizationService.Apply(this);
 		PopulateSettingsControls();
+		await RefreshZapretCompatibilityAsync();
 		await RefreshInstancesAsync();
 		await _authService.TryRestoreSessionAsync(_settings);
 		await _elyAccounts.RestoreAsync();
@@ -450,7 +451,7 @@ public partial class MainWindow : Window
 		try
 		{
 			bool useEly = _settings.OfflineModeEnabled && _elyAccounts.IsSignedIn;
-			bool showElySkins = !_settings.OfflineModeEnabled && _settings.ShowElySkinsForLicensedAccounts;
+			bool showElySkins = _settings.OfflineModeEnabled || _settings.ShowElySkinsForLicensedAccounts;
 			MSession mSession = useEly ? await _elyAccounts.GetRequiredSessionAsync(_launchCancellation.Token) :
 				(!_settings.OfflineModeEnabled ? await _authService.GetRequiredSessionAsync(_settings) : MSession.CreateOfflineSession(_settings.OfflinePlayerName));
 			MSession session = mSession;
@@ -670,6 +671,10 @@ public partial class MainWindow : Window
 			else if (text == "Skins")
 			{
 				await RefreshSkinPageAsync(!_skinPageLoaded);
+			}
+			else if (text == "Settings" && !_zapretRepairInProgress)
+			{
+				await RefreshZapretCompatibilityAsync();
 			}
 		}
 	}

@@ -13,22 +13,59 @@ class OrbitButton extends AbstractWidget {
     private final boolean primary;
     private String icon;
     private String focusId;
-    private boolean tab,iconOnly,leftAligned;
+    private boolean tab,iconOnly,leftAligned,plain;
+    protected boolean compact;
     private final OrbitMotion hover=new OrbitMotion();
     private OrbitMotion selection;
     private static final java.util.Map<net.minecraft.client.gui.screens.Screen,java.util.Map<String,OrbitMotion>> TABS=new java.util.WeakHashMap<>();
     OrbitButton(int x,int y,int w,int h,String text,boolean primary,Runnable action) {
         super(x,y,w,h,OrbitFonts.text(text)); this.action=action; this.primary=primary;
     }
+    OrbitButton plain(){plain=true;return this;}
     OrbitButton withIcon(String name){icon=name;return this;}
     OrbitButton focusId(String id){focusId=id;return this;}
     String focusKey(){return focusId!=null?focusId:getClass().getName()+":"+getMessage().getString();}
     OrbitButton asTab(){tab=true;return this;}
-    OrbitButton alignLeft(){leftAligned=true;return this;}
+    OrbitButton compact(){compact=true;if(height>30)setHeight(30);if(tab)setTooltip(OrbitTheme.tooltip(getMessage()));return this;}
+    OrbitButton alignLeft(){leftAligned=true;
+        var text=ButtonLabel.settingLayout(labelFont(),getMessage().getString(),width-20,height-6);
+        if(!String.join(" ",text.lines()).equals(getMessage().getString()))setTooltip(OrbitTheme.tooltip(getMessage()));
+        return this;
+    }
     OrbitButton iconOnly(String name){icon=name;iconOnly=true;setTooltip(OrbitTheme.tooltip(getMessage()));setTooltipDelay(java.time.Duration.ofMillis(450));return this;}
     int textInset(){return icon!=null && !iconOnly?18:0;}
     net.minecraft.client.gui.Font labelFont(){return primary||tab?OrbitFonts.strong():OrbitFonts.ui();}
     @Override protected void extractWidgetRenderState(GuiGraphicsExtractor g,int mx,int my,float delta) {
+        if(plain){
+            float amount=hover.toward(active&&isHoveredOrFocused());
+            if(amount>.001)OrbitTheme.rounded(g,getX()+2,getY()+2,width-4,height-4,OrbitTheme.translucent(OrbitTheme.PRIMARY,(int)(amount*25)));
+            ModuleIcons.ui(g,icon,getX()+(width-12)/2,getY()+(height-12)/2,12,OrbitMotion.mix(OrbitTheme.MUTED,OrbitTheme.TEXT,amount));
+            if(isFocused())OrbitTheme.outline(g,getX()+2,getY()+2,width-4,height-4,OrbitTheme.FOCUS);
+            return;
+        }
+        if(compact){
+            float amount=hover.toward(active&&isHoveredOrFocused());
+            int color=primary?OrbitTheme.SELECTED:OrbitMotion.mix(OrbitTheme.translucent(OrbitTheme.BASE,242),OrbitTheme.HOVER,amount);
+            g.fill(getX(),getY(),getX()+width,getY()+height,color);
+            if(primary||isFocused())g.fill(getX(),getY()+height-1,getX()+width,getY()+height,OrbitTheme.PRIMARY);
+            int textColor=!active?OrbitTheme.MUTED:primary?OrbitTheme.PRIMARY:OrbitTheme.TEXT;
+            var font=OrbitFonts.ui();
+            String symbol=switch(getMessage().getString()){case "×"->"close";case "<"->"left";case ">"->"right";default->null;};
+            if(iconOnly||symbol!=null)ModuleIcons.ui(g,iconOnly?icon:symbol,getX()+(width-12)/2,getY()+(height-12)/2,12,textColor);
+            else if(icon!=null){
+                ModuleIcons.ui(g,icon,getX()+6,getY()+(height-12)/2,12,textColor);
+                g.text(font,OrbitTheme.ellipsize(font,getMessage().getString(),width-29),getX()+23,getY()+(height-9)/2,textColor,false);
+            }else if(leftAligned)ButtonLabel.left(g,font,getMessage().getString(),getX()+6,getY()+3,width-12,height-6,textColor);
+            else {
+                var lines=ButtonLabel.settingLayout(font,getMessage().getString(),width-6,height-4).lines();
+                int labelY=getY()+(height-(lines.size()*10-1))/2;
+                for(int i=0;i<lines.size();i++){
+                    String line=OrbitTheme.ellipsize(font,lines.get(i),width-6);
+                    g.text(font,line,getX()+(width-font.width(line))/2,labelY+i*10,textColor,false);
+                }
+            }
+            return;
+        }
         float amount=hover.toward(active&&isHoveredOrFocused());
         float selected=primary?1:0;
         if(tab){

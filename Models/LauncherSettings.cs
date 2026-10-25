@@ -51,6 +51,8 @@ public sealed class LauncherSettings
 
 	public string Language { get; set; } = "ru";
 
+	public string? ZapretFolder { get; set; }
+
 	public string LauncherBackground { get; set; } = "default";
 
 	public int BackgroundDimmingPercent { get; set; } = 65;

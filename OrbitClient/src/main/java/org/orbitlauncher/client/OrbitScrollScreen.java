@@ -14,7 +14,7 @@ import org.lwjgl.glfw.GLFW;
 import net.minecraft.network.chat.Component;
 
 /** A clipped, continuously scrolling content region. Header and footer never move. */
-abstract class OrbitScrollScreen extends Screen {
+abstract class OrbitScrollScreen extends OrbitUiScreen {
     private record Entry(AbstractWidget widget,int y){}
     private final List<Entry> content=new ArrayList<>();
     protected int viewX,viewY,viewWidth,viewHeight;
@@ -22,7 +22,19 @@ abstract class OrbitScrollScreen extends Screen {
     private double scroll,target,maxScroll,dragAnchor;
     private long lastFrame;
     private final OrbitPageTransition pageTransition=new OrbitPageTransition();
+    private final OrbitReveal reveal=new OrbitReveal();
+    private boolean windowPose;
     protected OrbitScrollScreen(Component title){super(net.minecraft.client.Minecraft.getInstance(),OrbitFonts.ui(),title);}
+    protected void beginWindow(GuiGraphicsExtractor g,int x,int y,int w,int h){
+        float progress=reveal.progress(),scale=.975f+.025f*progress;
+        g.pose().pushMatrix();windowPose=true;
+        g.pose().translate(x+w/2f,y+h/2f+5*(1-progress));
+        g.pose().scale(scale,scale);g.pose().translate(-x-w/2f,-y-h/2f);
+        OrbitTheme.windowFrame(g,x,y,w,h);
+    }
+    @Override public void extractRenderState(GuiGraphicsExtractor g,int mx,int my,float delta){
+        try{super.extractRenderState(g,mx,my,delta);}finally{if(windowPose){g.pose().popMatrix();windowPose=false;}}
+    }
     protected void contentRegion(int x,int y,int w,int h){content.clear();viewX=x;viewY=y;viewWidth=w;viewHeight=Math.max(1,h);}
     protected void content(Runnable factory){capture=true;try{factory.run();}finally{capture=false;}}
     @Override protected <T extends GuiEventListener & Renderable & NarratableEntry> T addRenderableWidget(T widget){
@@ -32,19 +44,10 @@ abstract class OrbitScrollScreen extends Screen {
     protected void contentHeight(int height){maxScroll=Math.max(0,height-viewHeight);target=Math.clamp(target,0,maxScroll);scroll=Math.clamp(scroll,0,maxScroll);positionContent();}
     protected void resetScroll(){scroll=target=0;}
     protected void switchContent(Runnable change){change.run();pageTransition.start();}
-    private static String focusKey(AbstractWidget widget){
-        return widget instanceof OrbitSwitch toggle?"switch:"+toggle.label:
-            widget instanceof OrbitSlider slider?"slider:"+slider.label():widget instanceof OrbitButton button?button.focusKey():widget.getClass().getName()+":"+widget.getMessage().getString();
-    }
-    @Override protected void rebuildWidgets(){
-        String previous=getFocused() instanceof AbstractWidget widget?focusKey(widget):null;
-        super.rebuildWidgets();
-        if(previous!=null)for(var child:children())if(child instanceof AbstractWidget widget&&focusKey(widget).equals(previous)){setFocused(widget);break;}
-    }
     protected int scrollOffset(){return (int)Math.round(scroll);}
     protected void animateScroll(){
         long now=System.nanoTime();double dt=lastFrame==0?0:(now-lastFrame)/1e9;lastFrame=now;
-        scroll+=(target-scroll)*(1-Math.exp(-Math.min(dt,.1)*18));if(Math.abs(scroll-target)<.05)scroll=target;positionContent();
+        scroll+=(target-scroll)*OrbitTheme.options().blend(dt,18);if(Math.abs(scroll-target)<.05)scroll=target;positionContent();
     }
     private void positionContent(){for(var e:content){e.widget.setY(e.y-scrollOffset());e.widget.visible=e.widget.getY()+e.widget.getHeight()>viewY&&e.widget.getY()<viewY+viewHeight;}}
     protected void renderContent(GuiGraphicsExtractor g,int mx,int my,float delta){
@@ -69,8 +72,8 @@ abstract class OrbitScrollScreen extends Screen {
             dragging=true;dragAnchor=e.y();target=scroll;return true;
         }
         if(inContent(e.x(),e.y()))return super.mouseClicked(e,twice);
-        var visibility=content.stream().map(entry->entry.widget.visible).toList();for(var entry:content)entry.widget.visible=false;
-        try{return super.mouseClicked(e,twice);}finally{for(int i=0;i<content.size();i++)content.get(i).widget.visible=visibility.get(i);}
+        var original=List.copyOf(content);var visibility=original.stream().map(entry->entry.widget.visible).toList();for(var entry:original)entry.widget.visible=false;
+        try{return super.mouseClicked(e,twice);}finally{for(int i=0;i<original.size();i++)original.get(i).widget.visible=visibility.get(i);}
     }
     @Override public boolean mouseDragged(MouseButtonEvent e,double dx,double dy){
         if(!dragging)return super.mouseDragged(e,dx,dy);
@@ -94,13 +97,8 @@ abstract class OrbitScrollScreen extends Screen {
         return super.keyPressed(e);
     }
     @Override public void setFocused(GuiEventListener child){
-        if(child instanceof AbstractWidget old&&!children().contains(child)){
-            String key=focusKey(old);child=null;
-            for(var candidate:children())if(candidate instanceof AbstractWidget widget&&focusKey(widget).equals(key)){child=widget;break;}
-            if(child==null&&children().contains(getFocused()))child=getFocused();
-        }
         super.setFocused(child);
-        if(child instanceof AbstractWidget w&&isContentWidget(w)){
+        if(getFocused() instanceof AbstractWidget w&&isContentWidget(w)){
             if(w.getY()<viewY)target=Math.clamp(target+w.getY()-viewY,0,maxScroll);
             if(w.getY()+w.getHeight()>viewY+viewHeight)target=Math.clamp(target+w.getY()+w.getHeight()-viewY-viewHeight,0,maxScroll);
             if(focusTraversal){scroll=target;positionContent();}

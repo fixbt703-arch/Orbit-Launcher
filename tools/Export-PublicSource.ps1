@@ -96,7 +96,7 @@ function Export-OrbitPublicSource {
         }
     }
     $files = @('.gitignore','LICENSE','README.md','RELEASE_AUDIT.md','OrbitLauncher.csproj','app.ico','app.manifest','app.xaml',
-        'App.xaml.cs','GlobalUsings.cs','mainwindow.xaml','MainWindow.xaml.cs','MainWindow.Updates.cs','MainWindow.Ely.cs','MainWindow.Connect.cs','ELY_SKINS.md','UPDATING.md','NETWORK_REFILL_FIXES.md','build.bat',
+        'App.xaml.cs','GlobalUsings.cs','mainwindow.xaml','MainWindow.xaml.cs','MainWindow.Updates.cs','MainWindow.Ely.cs','MainWindow.Connect.cs','MainWindow.Zapret.cs','ELY_SKINS.md','UPDATING.md','NETWORK_REFILL_FIXES.md','build.bat',
         'cleaning.bat','client-build.bat','sign-file.bat','Utilities\AppConfiguration.Local.cs.example',
         'installer\OrbitLauncher.iss','tools\Build-GitHub.ps1','tools\Export-PublicSource.ps1','tools\GitHub-README.ru.txt','tools\Release-Probe.cs.txt',
         'OrbitClient\build.gradle','OrbitClient\settings.gradle','OrbitClient\gradle.properties','OrbitClient\gradlew',
@@ -124,8 +124,20 @@ function Export-OrbitPublicSource {
     Copy-ApprovedFile 'docs\ORBIT_CONNECT.md'
     Copy-ApprovedFile 'docs\ORBIT_CONNECT_ZAPRET.md'
     Copy-ApprovedFile 'docs\FINAL_AUDIT_2026-10-20.md'
+    Copy-ApprovedFile 'docs\ORBIT_CLIENT_0.19.0.md'
+    Copy-ApprovedFile 'docs\ORBIT_CLIENT_0.19.1.md'
+    Copy-ApprovedFile 'docs\ORBIT_CLIENT_0.19.2.md'
+    Copy-ApprovedFile 'docs\ORBIT_CLIENT_0.20.0.md'
+    Copy-ApprovedFile 'docs\ORBIT_CLIENT_0.20.1.md'
+    Copy-ApprovedFile 'docs\ORBIT_CLIENT_0.21.0.md'
+    Copy-ApprovedFile 'docs\ORBIT_CLIENT_0.22.0.md'
+    Copy-ApprovedFile 'docs\ORBIT_CLIENT_0.22.1.md'
+    Copy-ApprovedFile 'docs\ORBIT_CLIENT_0.23.0.md'
+    Copy-ApprovedFile 'docs\ORBIT_CLIENT_0.24.0.md'
+    Copy-ApprovedFile 'docs\FINAL_AUDIT_2026-10-25.md'
+    Copy-ApprovedFile 'docs\ZAPRET_ALT9_2026-10-25.md'
     Copy-ApprovedTree 'Tests' @('.cs','.csproj')
-    Copy-ApprovedTree 'OrbitClient\src' @('.java','.json','.png','.mcmeta')
+    Copy-ApprovedTree 'OrbitClient\src' @('.java','.json','.png','.mcmeta','.vsh','.fsh')
     Copy-ApprovedTree 'OrbitClient\tools' @('.java','.ps1')
     Copy-ApprovedTree 'OrbitClient\gradle' @('.jar','.properties')
     Copy-ApprovedTree 'OrbitClient\third-party\holdmyitems\src' @('.java','.json','.json5','.lua','.rpo','.png','.mcmeta','.ogg','.properties','.jar')

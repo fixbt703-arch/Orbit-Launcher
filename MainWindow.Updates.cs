@@ -24,7 +24,7 @@ public partial class MainWindow
     private void InitializeUpdates()
     {
         _updateService = new GitHubUpdateService(_updateHttp);
-        LauncherVersionText.Text = "Orbit Launcher " + GitHubUpdateService.DisplayVersion(GitHubUpdateService.CurrentVersion);
+        UpdatePublishedVersionText(loading: true);
         Activated += (_, _) => Dispatcher.BeginInvoke(new Action(() => ShowAvailableUpdate(false)), DispatcherPriority.ContextIdle);
         Closed += (_, _) =>
         {
@@ -34,6 +34,13 @@ public partial class MainWindow
             _updateWindow?.Close();
             _updateHttp.Dispose();
         };
+    }
+
+    private void UpdatePublishedVersionText(bool loading = false)
+    {
+        LauncherVersionText.Text = _updateService.PublishedVersion is { } version ? "Orbit Launcher " + version
+            : LocalizationService.IsEnglish ? (loading ? "Orbit Launcher — loading release version…" : "Orbit Launcher — release version unavailable")
+            : loading ? "Orbit Launcher — загружаем версию релиза…" : "Orbit Launcher — версия релиза недоступна";
     }
 
     private void StartUpdateChecks()
@@ -61,10 +68,12 @@ public partial class MainWindow
         _checkingUpdate = true;
         UpdateCheckButton.IsEnabled = false;
         UpdateStatusText.Text = LocalizationService.IsEnglish ? "Checking GitHub…" : "Проверяем GitHub…";
+        UpdatePublishedVersionText(loading: true);
         try
         {
             var update = await _updateService.CheckAsync(GitHubUpdateService.CurrentVersion, _updateLifetime.Token);
             if (_updatesClosed) return;
+            UpdatePublishedVersionText();
             _availableUpdate = update;
             UpdateInstallButton.Visibility = update is null ? Visibility.Collapsed : Visibility.Visible;
             UpdateStatusText.Text = update is null ? (LocalizationService.IsEnglish ? "You're up to date" : "Установлена последняя версия")
@@ -78,7 +87,11 @@ public partial class MainWindow
                 UpdateStatusText.Text = LocalizationService.IsEnglish ? "Couldn't check updates. Try again later."
                     : (manual && ex is InvalidDataException ? ex.Message : "Не удалось проверить обновления. Попробуйте позже.");
         }
-        finally { _checkingUpdate = false; if (!_updatesClosed) UpdateCheckButton.IsEnabled = true; }
+        finally
+        {
+            _checkingUpdate = false;
+            if (!_updatesClosed) { UpdateCheckButton.IsEnabled = true; UpdatePublishedVersionText(); }
+        }
     }
 
     private void ShowAvailableUpdate(bool manual)

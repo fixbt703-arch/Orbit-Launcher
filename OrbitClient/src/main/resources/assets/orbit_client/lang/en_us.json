@@ -30,5 +30,6 @@
   "key.orbit_client.module.glint": "Toggle: Enchantment Glow",
   "key.orbit_client.module.hitbox": "Toggle: Hitbox",
   "key.orbit_client.inspect": "Hold My Items: inspect weapon",
+  "key.orbit_client.module.trajectories": "Toggle: Trajectories",
   "key.orbit_client.module.hold_my_items": "Toggle: Hold My Items"
 }

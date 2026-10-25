@@ -18,7 +18,7 @@ public class BuildAgent {
                 files.put(entry.getName(), asm.getInputStream(entry).readAllBytes());
             }
         }
-        files.put("META-INF/MANIFEST.MF", ("Manifest-Version: 1.0\r\nPremain-Class: org.orbitlauncher.skinbridge.Agent\r\nImplementation-Version: 1.0.1\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        files.put("META-INF/MANIFEST.MF", ("Manifest-Version: 1.0\r\nPremain-Class: org.orbitlauncher.skinbridge.Agent\r\nImplementation-Version: 1.0.3\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
         files.put("META-INF/LICENSE-ASM.txt", Files.readAllBytes(Path.of(args[3])));
         files.put("META-INF/LICENSE-Orbit.txt", Files.readAllBytes(Path.of(args[4])));
         Remapper remapper = new Remapper(Opcodes.ASM9) {

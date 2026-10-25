@@ -23,6 +23,7 @@ public final class Bridge {
     }, new ThreadPoolExecutor.AbortPolicy());
     private static final String VIEWER = System.getProperty("orbit.skinbridge.viewer", "").replace("-", "");
     private static final String VIEWER_NAME = System.getProperty("orbit.skinbridge.viewerName", "");
+    private static final boolean INCLUDE_VIEWER = Boolean.getBoolean("orbit.skinbridge.includeViewer");
     private static final String ELY_KEY = "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAxgFJRb0e9fRyVG5+JlCgh0hccRIcgO5yxEVkMJajAI12Ev/Pc7lpTt6OtKTEcUNfjYgBnEhIKbdLD0Z+B5BxSg9DQmozgzZcesScpASQb4Kt6P8itowdbgbUm4v+6x1QUKJjjmhHq93m9OIEbxQLCq+SrEMZpDrXRgd9DhNPjZv/95ximP8otvh7+bmEl8jwINgfJx0PAeJFYlceQcshiYh+LHtaIwzbTTqkDibDm7QiEc+/qGab3mABtVTpqw/refwFoR0M8+xkWF+1/D8kH0WFa+rBhdjLyLG+2hdOpKXoH/fMH0tQMPHU78J17JVKWwIWCwEWXp8HiWSbIt3acmBYtyW3tqarFFMMECx2wmJP6FVOvYVThZxq9qc9/f3yeTGz3g7zU1YljHSVRP16iEbEnHQBKxmrj2cdZgosJej4YppV7f3iZ8o8PF6UY51LSqvaCteXuWeYSJJESGAsUoV7ihJfWL8DymHamywB2Cahx7EiDGS3/iBcQUmpk4TTg2FrZPuKGItn1QfIRieOknnj9CPKiWdfOtJBr3i1FXLEfExgcJhQ00Y6B08QVvgiCzUF3t+VAG3Ef2YINYyGAXcW0TIgMalwwgGzdhQRhItODXptWigy0DNTUAgKQT9PS8N09yPBGxIq64T9A3/zFqC/k2bMLWUSVtIlilIItn0CAwEAAQ==";
 
     public static void remember(UUID id, String name) {
@@ -34,7 +35,7 @@ public final class Bridge {
         catch (NoSuchMethodException ignored) { return object.getClass().getMethod(old).invoke(object); }
     }
     private static Skin skin(UUID id, String name, boolean wait) {
-        if (id == null || viewer(id) || name == null || name.equalsIgnoreCase(VIEWER_NAME) || !name.matches("[A-Za-z0-9_]{3,16}")) return null;
+        if (id == null || name == null || (!INCLUDE_VIEWER && (viewer(id) || name.equalsIgnoreCase(VIEWER_NAME))) || !name.matches("[A-Za-z0-9_]{3,16}")) return null;
         try {
             String key = name.toLowerCase(Locale.ROOT);
             if (CACHE.size() > 1024) CACHE.clear();
@@ -61,7 +62,7 @@ public final class Bridge {
         if (original != null || profile == null) return original;
         try {
             UUID id = (UUID)call(profile, "id", "getId"); String name = (String)call(profile, "name", "getName");
-            if (id == null || viewer(id) || name == null || name.equalsIgnoreCase(VIEWER_NAME) || !name.matches("[A-Za-z0-9_]{3,16}")) return original;
+            if (id == null || name == null || (!INCLUDE_VIEWER && (viewer(id) || name.equalsIgnoreCase(VIEWER_NAME))) || !name.matches("[A-Za-z0-9_]{3,16}")) return original;
             skin(id, name, false); // Schedule IO; getPackedTextures also runs on Minecraft's render thread.
             synchronized (PACKED) {
                 Object pending = PACKED.get(profile);
@@ -125,9 +126,19 @@ public final class Bridge {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static Object legacy(Object original, Object profile) {
-        if (!(original instanceof Map) || !((Map)original).isEmpty() || profile == null) return original;
+        if (profile == null || (original != null && (!(original instanceof Map) || !((Map)original).isEmpty()))) return original;
         try {
-            Skin skin = skin((UUID)call(profile, "id", "getId"), (String)call(profile, "name", "getName"), true);
+            Skin skin;
+            if (original == null) {
+                // Accept verified server Ely properties before vanilla checks its Mojang-only key.
+                Object properties = call(profile, "properties", "getProperties");
+                Collection<?> textures = (Collection<?>)properties.getClass().getMethod("get", Object.class).invoke(properties, "textures");
+                if (textures.isEmpty()) return null;
+                Object property = textures.iterator().next();
+                skin = signedSkin((String)call(property, "value", "getValue"), (String)call(property, "signature", "getSignature"), null);
+            } else {
+                skin = skin((UUID)call(profile, "id", "getId"), (String)call(profile, "name", "getName"), true);
+            }
             if (skin == null) return original;
             ClassLoader loader = profile.getClass().getClassLoader();
             Class<?> textureType = Class.forName("com.mojang.authlib.minecraft.MinecraftProfileTexture", true, loader);

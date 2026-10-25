@@ -13,7 +13,7 @@ public final class ModuleIcons {
     private static final EnumMap<Module,Identifier> MODULES=new EnumMap<>(Module.class);
     private static final Map<String,Identifier> UI=new HashMap<>();
     private static final java.util.Set<String> SHARED=java.util.Set.of("settings","search","close","left","right","all","on","check","chunks","zoom","clock");
-    static {for(var module:Module.values())MODULES.put(module,id(module.name().toLowerCase(Locale.ROOT)));}
+    static {for(var module:Module.values())MODULES.put(module,id(module==Module.INTERFACE?"settings":module.name().toLowerCase(Locale.ROOT)));}
     private static Identifier id(String name){return Identifier.fromNamespaceAndPath("orbit_client","textures/gui/sprites/"+(SHARED.contains(name)?"launcher_icons/":"ui/icons/")+name+".png");}
     public static void draw(GuiGraphicsExtractor g,Module module,int x,int y,int size,int color) {
         g.blit(RenderPipelines.GUI_TEXTURED,MODULES.get(module),x,y,0,0,size,size,96,96,96,96,color);

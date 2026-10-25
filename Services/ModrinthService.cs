@@ -438,10 +438,14 @@ public sealed class ModrinthService
         var plan = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
         var pinned = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var resolving = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var optionalBranches = new List<(string Origin, string Version, JsonElement Dependency)>();
+        var mandatoryProjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         async Task Resolve(string id, string? versionId)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (versionId is not null && pinned.TryGetValue(id, out var required) && required != versionId)
+            if (versionId is not null && mandatoryProjects.Contains(id) && plan[id].GetProperty("id").GetString() != versionId)
+                throw new InvalidDataException("Необязательный мод требует другую версию обязательной зависимости: " + id);
+            if (mandatoryProjects.Count > 0 && versionId is not null && pinned.TryGetValue(id, out var required) && required != versionId)
                 throw new InvalidDataException("Моды требуют разные версии одной зависимости: " + id);
             if (versionId is not null) pinned[id] = versionId;
             if (plan.TryGetValue(id, out var previous) && (versionId is null || previous.GetProperty("id").GetString() == versionId)) return;
@@ -464,30 +468,72 @@ public sealed class ModrinthService
                     || (version.TryGetProperty("loaders", out var loaders) && !loaders.EnumerateArray().Any(l => string.Equals(l.GetString(), loader, StringComparison.OrdinalIgnoreCase))))
                     throw new InvalidDataException("Требуемый выпуск мода несовместим со сборкой: " + id);
                 plan[id] = version;
+                if (plan.Count > 512) throw new InvalidDataException("Слишком большое дерево зависимостей модов.");
                 if (dependencyDownloadMode == "none" || !version.TryGetProperty("dependencies", out var dependencies)) return;
                 foreach (var dependency in dependencies.EnumerateArray())
                 {
                     var type = dependency.TryGetProperty("dependency_type", out var kind) ? kind.GetString() : "";
-                    if (type != "required" && !(type == "optional" && dependencyDownloadMode == "all")) continue;
-                    // Optional failure must not leave a partial subtree in the installation plan.
-                    var previousPlan = new Dictionary<string, JsonElement>(plan, StringComparer.OrdinalIgnoreCase);
-                    var previousPins = new Dictionary<string, string>(pinned, StringComparer.OrdinalIgnoreCase);
-                    try
+                    if (type == "optional" && dependencyDownloadMode == "all")
                     {
-                        var dependencyId = await GetDependencyProjectIdAsync(dependency, cancellationToken);
-                        if (dependencyId.Length == 0) throw new InvalidDataException("Modrinth не вернул ID зависимости проекта " + id);
-                        var pin = dependency.TryGetProperty("version_id", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-                        await Resolve(dependencyId, pin);
+                        optionalBranches.Add((id, version.GetProperty("id").GetString() ?? "", dependency.Clone()));
+                        continue;
                     }
-                    catch (Exception ex) when (type == "optional" && ex is not OperationCanceledException)
-                    {
-                        plan = previousPlan; pinned = previousPins;
-                    }
+                    if (type != "required") continue;
+                    var dependencyId = await GetDependencyProjectIdAsync(dependency, cancellationToken);
+                    if (dependencyId.Length == 0) throw new InvalidDataException("Modrinth не вернул ID зависимости проекта " + id);
+                    var pin = dependency.TryGetProperty("version_id", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+                    await Resolve(dependencyId, pin);
                 }
             }
             finally { resolving.Remove(id); }
         }
         await Resolve(projectId, selectedVersionId);
+        // A later dependency pin can replace a provisional latest release and its constraints.
+        pinned.Clear();
+        if (selectedVersionId is not null) pinned[projectId] = selectedVersionId;
+        void ValidateRequired(string id)
+        {
+            if (!mandatoryProjects.Add(id)) return;
+            var version = plan[id];
+            if (dependencyDownloadMode == "none" || !version.TryGetProperty("dependencies", out var dependencies)) return;
+            foreach (var dependency in dependencies.EnumerateArray())
+            {
+                if (dependency.GetProperty("dependency_type").GetString() != "required") continue;
+                var dependencyId = DependencyId(dependency);
+                if (!plan.TryGetValue(dependencyId, out var selected))
+                    throw new InvalidDataException("Не разрешена обязательная зависимость проекта " + id);
+                if (dependency.TryGetProperty("version_id", out var pin) && pin.ValueKind == JsonValueKind.String)
+                {
+                    if (selected.GetProperty("id").GetString() != pin.GetString())
+                        throw new InvalidDataException("Моды требуют разные версии одной зависимости: " + dependencyId);
+                    pinned[dependencyId] = pin.GetString()!;
+                }
+                ValidateRequired(dependencyId);
+            }
+        }
+        ValidateRequired(projectId);
+        foreach (var obsolete in plan.Keys.Where(id => !mandatoryProjects.Contains(id)).ToArray()) plan.Remove(obsolete);
+        // Resolve every mandatory sibling before optional branches can introduce version pins.
+        for (var index = 0; index < optionalBranches.Count; index++)
+        {
+            var branch = optionalBranches[index];
+            if (!plan.TryGetValue(branch.Origin, out var origin) || origin.GetProperty("id").GetString() != branch.Version) continue;
+            var previousPlan = new Dictionary<string, JsonElement>(plan, StringComparer.OrdinalIgnoreCase);
+            var previousPins = new Dictionary<string, string>(pinned, StringComparer.OrdinalIgnoreCase);
+            var previousCount = optionalBranches.Count;
+            try
+            {
+                var id = await GetDependencyProjectIdAsync(branch.Dependency, cancellationToken);
+                if (id.Length == 0) throw new InvalidDataException("Modrinth не вернул ID необязательной зависимости.");
+                var pin = branch.Dependency.TryGetProperty("version_id", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+                await Resolve(id, pin);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                plan = previousPlan; pinned = previousPins;
+                optionalBranches.RemoveRange(previousCount, optionalBranches.Count - previousCount);
+            }
+        }
         string DependencyId(JsonElement dependency)
         {
             if (dependency.TryGetProperty("project_id", out var id) && id.ValueKind == JsonValueKind.String) return id.GetString() ?? "";

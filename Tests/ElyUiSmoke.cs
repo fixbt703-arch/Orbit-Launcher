@@ -3,8 +3,10 @@ using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using OrbitLauncher;
@@ -34,7 +36,13 @@ internal static class ElyUiSmoke
                     var accounts = new ElyAccountService(http, Path.Combine(output, "fixture-session.dat"));
                     var skins = new ElySkinService(http, Path.Combine(output, "fixture-heads"));
                     var main = new MainWindow(); RemoveLoaded(main); Prepare(main);
-                    var settings = new LauncherSettings { OfflineModeEnabled = true, OfflinePlayerName = "OrbitTest" };
+                    var zapretFixture = Path.Combine(output, "zapret-fixture");
+                    Directory.CreateDirectory(Path.Combine(zapretFixture, "lists")); Directory.CreateDirectory(Path.Combine(zapretFixture, "bin"));
+                    File.WriteAllText(Path.Combine(zapretFixture, "service.bat"), "fixture only");
+                    File.WriteAllText(Path.Combine(zapretFixture, "bin", "winws.exe"), "fixture only");
+                    File.WriteAllText(Path.Combine(zapretFixture, "lists", "list-exclude-user.txt"), "# user exclusions\n");
+                    var zapretBackups = Path.Combine(output, "zapret-backups");
+                    var settings = new LauncherSettings { OfflineModeEnabled = true, OfflinePlayerName = "OrbitTest", ZapretFolder = zapretFixture };
                     Set(main, "_settings", settings); Set(main, "_elyAccounts", accounts); Set(main, "_elySkins", skins);
                     Set(main, "_settingsService", new SettingsService(Path.Combine(output, "fixture-settings.json")));
                     var panel = (ElySkinsPanel)main.FindName("ElySkins"); panel.Initialize(accounts, skins, Path.Combine(output, "web-profile"));
@@ -65,12 +73,88 @@ internal static class ElyUiSmoke
                     var licensedToggle = (CheckBox)main.FindName("LicensedElySkinsCheck");
                     if (!licensedToggle.IsVisible || licensedToggle.IsChecked != true || !licensedToggle.Focus()) throw new Exception("Licensed Ely switch is unavailable");
                     Capture(main, output, "ely-licensed-switch-1060");
-                    settings.ShowElySkinsForLicensedAccounts = false;
-                    typeof(MainWindow).GetMethod("UpdateSkinAccountState", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(main, null);
-                    if (licensedToggle.IsChecked != false) throw new Exception("Licensed Ely setting did not synchronize");
-                    settings.ShowElySkinsForLicensedAccounts = true;
+                    var microsoftSession = auth.GetType().GetField("_microsoftSession", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(auth);
+                    var elyAccount = accounts.Account;
+                    foreach (var enabled in new[] { false, true })
+                    {
+                        licensedToggle.IsChecked = enabled;
+                        var limit = DateTime.UtcNow.AddSeconds(5);
+                        var preferenceStore = new SettingsService(Path.Combine(output, "fixture-settings.json"));
+                        while (!File.Exists(Path.Combine(output, "fixture-settings.json")) || (await preferenceStore.LoadAsync()).ShowElySkinsForLicensedAccounts != enabled)
+                        {
+                            if (DateTime.UtcNow > limit) throw new Exception("Licensed Ely switch was not saved");
+                            await Task.Delay(25);
+                        }
+                        if (!ReferenceEquals(microsoftSession, auth.GetType().GetField("_microsoftSession", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(auth))
+                            || !ReferenceEquals(elyAccount, accounts.Account)) throw new Exception("Licensed skin preference changed an account session");
+                    }
+                    Console.WriteLine("PASS Ely preference: on/off persists without altering Microsoft or Ely account sessions.");
                     settings.OfflineModeEnabled = true; await InvokeAsync(main, "UpdateAccountCardAsync");
+                    var publishedCache=Path.Combine(output,"published-version");Directory.CreateDirectory(publishedCache);
+                    await File.WriteAllTextAsync(Path.Combine(publishedCache,"published-version.txt"),"1.5");
+                    Set(main,"_updateService",new GitHubUpdateService(http,publishedCache));
+                    typeof(MainWindow).GetMethod("UpdatePublishedVersionText",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(main,new object[]{false});
+                    if(((TextBlock)main.FindName("LauncherVersionText")).Text!="Orbit Launcher 1.5")throw new Exception("Settings exposed internal build instead of published release");
                     ((RadioButton)main.FindName("SettingsNav")).IsChecked = true; await Settle(main); Capture(main, output, "ely-settings-1060");
+                    await (Task)typeof(MainWindow).GetMethod("CheckForUpdatesAsync",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(main,new object[]{false})!;
+                    if(((TextBlock)main.FindName("LauncherVersionText")).Text!="Orbit Launcher 1.5")throw new Exception("Unavailable release check lost cached public version");
+                    ((TextBlock)main.FindName("LauncherVersionText")).BringIntoView();await Settle(main);Capture(main,output,"published-release-settings-1060");
+                    var zapretButton = (Button)main.FindName("ZapretRepairButton");
+                    var zapretRemoveButton = (Button)main.FindName("ZapretRemoveButton");
+                    await InvokeAsync(main, "RefreshZapretCompatibilityAsync");
+                    if (zapretRemoveButton.Visibility != Visibility.Collapsed) throw new Exception("Remove action is visible without compatibility");
+                    var persistedSettings = new SettingsService(Path.Combine(output, "fixture-settings.json"));
+                    await persistedSettings.SaveAsync(settings);
+                    if ((await persistedSettings.LoadAsync()).ZapretFolder != zapretFixture) throw new Exception("Zapret folder lost after settings reload");
+                    foreach (var language in new[] { "ru", "en" })
+                    {
+                        LocalizationService.SetLanguage(language); LocalizationService.Apply(main);
+                        if (AutomationProperties.GetAutomationId(zapretRemoveButton) != "ZapretRemoveButton"
+                            || AutomationProperties.GetName(zapretButton) != LocalizationService.Translate("Исправить совместимость с Zapret")
+                            || AutomationProperties.GetName(zapretRemoveButton) != LocalizationService.Translate("Удалить совместимость с Zapret")
+                            || (string)zapretRemoveButton.Content != LocalizationService.Translate("Удалить совместимость"))
+                            throw new Exception("Zapret action labels or automation identity are incorrect");
+                        foreach (var state in new[]
+                        {
+                            (Removing: false, Changed: true, Message: "Исключения сохранены. Полностью перезапустите Zapret, затем повторите загрузку или применение скина.", Capture: "repair"),
+                            (Removing: true, Changed: true, Message: "Исключения Orbit удалены. Ваши записи сохранены. Полностью перезапустите Zapret.", Capture: "remove"),
+                            (Removing: true, Changed: false, Message: "Исключения Orbit не найдены. Ваши записи оставлены без изменений.", Capture: "remove-noop")
+                        })
+                        {
+                            if (state.Removing) await ZapretCompatibilityService.RemoveAsync(zapretFixture, default, zapretBackups);
+                            else await ZapretCompatibilityService.ApplyAsync(zapretFixture, default, zapretBackups);
+                            await InvokeAsync(main, "RefreshZapretCompatibilityAsync");
+                            if (zapretRemoveButton.Visibility != (state.Removing ? Visibility.Collapsed : Visibility.Visible))
+                                throw new Exception("Remove action does not follow actual compatibility state");
+                            var backupPath = state.Changed ? Path.Combine(output, "zapret-backups", "list-exclude-user-fixture.txt") : null;
+                            typeof(MainWindow).GetMethod("ShowZapretCompatibilityResult", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(main,
+                                new object[] { state.Removing, new ZapretCompatibilityResult(state.Changed, backupPath) });
+                            ((FrameworkElement)((FrameworkElement)zapretButton.Parent).Parent).BringIntoView(); await Settle(main);
+                            foreach (var button in state.Removing ? new[] { zapretButton } : new[] { zapretButton, zapretRemoveButton })
+                            {
+                                var bounds = button.TransformToAncestor(main).TransformBounds(new Rect(new Point(), button.RenderSize));
+                                if (!button.IsVisible || !button.Focus() || button.ActualWidth < 120
+                                    || bounds.Left < 0 || bounds.Right > main.ActualWidth || bounds.Top < 0 || bounds.Bottom > main.ActualHeight - 8)
+                                    throw new Exception("Zapret compatibility action is inaccessible or clipped");
+                            }
+                            zapretButton.Focus();
+                            zapretButton.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
+                            if (zapretRemoveButton.IsKeyboardFocused == state.Removing)
+                                throw new Exception("Zapret remove keyboard navigation ignores visibility");
+                            var statusElement = (TextBlock)main.FindName("ZapretRepairStatusText");
+                            var statusBounds = statusElement.TransformToAncestor(main).TransformBounds(new Rect(new Point(), statusElement.RenderSize));
+                            if (!statusElement.IsVisible || statusElement.Text != LocalizationService.Translate(state.Message)
+                                || statusBounds.Bottom > main.ActualHeight - 8 || statusBounds.Top < 0)
+                                throw new Exception("Zapret result or restart instruction is incorrect or outside the window");
+                            if (language == "en" && statusElement.Text.Any(character => character >= '\u0400' && character <= '\u04ff'))
+                                throw new Exception("Zapret status did not translate to English");
+                            if (((TextBlock)main.FindName("ZapretBackupPathText")).Text != (backupPath ?? string.Empty)
+                                || ((StackPanel)main.FindName("ZapretBackupPanel")).Visibility != (state.Changed ? Visibility.Visible : Visibility.Collapsed))
+                                throw new Exception("Zapret result shows the wrong backup path");
+                            Capture(main, output, "zapret-" + state.Capture + "-" + language + "-1060");
+                        }
+                    }
+                    Console.WriteLine("PASS Zapret settings: remove visible only while installed, saved folder, keyboard navigation, backup path and RU/EN states.");
                     ((RadioButton)main.FindName("SkinsNav")).IsChecked = true;
                     LocalizationService.SetLanguage("en"); LocalizationService.Apply(main); panel.UpdateState(); await Settle(main); Capture(main, output, "ely-english-1060");
                     var login = new ElyLoginWindow(accounts); Prepare(login); login.Show(); await Settle(login); Capture(login, output, "ely-login-english");

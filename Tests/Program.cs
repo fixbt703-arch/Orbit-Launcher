@@ -10,6 +10,8 @@ using OrbitLauncher.Services;
 using SkiaSharp;
 
 var json = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
+if (args.Length == 1 && args[0] == "--probe-alt9-services") { await Alt9NetworkProbe.RunAsync(); return; }
+if (args.Length == 2 && args[0] == "--probe-alt9-create") { await Alt9NetworkProbe.CreateInstancesAsync(args[1]); return; }
 if (args.Length == 1 && args[0] == "--final-neoforge") { await FinalNeoForgeRegression.RunAsync(); return; }
 if (args.Length == 1 && args[0] == "--final-datapack") { await FinalDatapackRegression.RunAsync(); return; }
 if (args.Length == 1 && args[0] == "--connect-pid-fixture") { await Task.Delay(2500); return; }
@@ -31,6 +33,13 @@ if (args.Length == 2 && args[0] == "--connect-transport-smoke") { await ConnectP
 if (args.Length == 2 && args[0] == "--probe-verity-install") { await ModInstallRegressionSmoke.ProbeVerityAsync(args[1]); return; }
 if (args.Length == 4 && args[0] == "--skin-launch-smoke") { await SkinLaunchSmoke.RunAsync(args[1], args[2], args[3]); return; }
 if (args.Length == 4 && args[0] == "--client-refill-smoke") { await SkinLaunchSmoke.RunAsync(args[1], args[2], args[3], refill: true); return; }
+if (args.Length == 4 && args[0] == "--client-glow-smoke") { await SkinLaunchSmoke.RunAsync(args[1], args[2], args[3], scenario: "glow"); return; }
+if (args.Length == 4 && args[0] == "--client-themes-smoke") { await SkinLaunchSmoke.RunAsync(args[1], args[2], args[3], scenario: "ui-themes"); return; }
+if (args.Length == 4 && args[0] == "--client-trajectories-smoke") { await SkinLaunchSmoke.RunAsync(args[1], args[2], args[3], scenario: "trajectories"); return; }
+if (args.Length == 4 && args[0] == "--client-offline-skin-smoke") { await SkinLaunchSmoke.RunAsync(args[1], args[2], args[3], scenario: "skin-offline"); return; }
+if (args.Length == 4 && args[0] == "--client-ely-skin-smoke") { await SkinLaunchSmoke.RunAsync(args[1], args[2], args[3], scenario: "skin-ely"); return; }
+if (args.Length == 4 && args[0] == "--client-ui-smoke") { await SkinLaunchSmoke.RunAsync(args[1], args[2], args[3], scenario: "ui"); return; }
+if (args.Length == 4 && args[0] == "--client-ui-scale-smoke") { await SkinLaunchSmoke.RunAsync(args[1], args[2], args[3], scenario: "ui-scale"); return; }
 if (args.Length == 2 && args[0] == "--ely-ui-smoke") { ElyUiSmoke.Run(args[1]); return; }
 if (args.Length == 2 && args[0] == "--ely-browser-smoke") { ElyUiSmoke.Run(args[1], browserProbe: true); return; }
 if (args.Length == 2 && args[0] == "--probe-ely")
@@ -95,6 +104,15 @@ if (args.Length == 1 && args[0] == "--probe-updates")
     Console.WriteLine($"PASS live GitHub release: {(published is null ? "none" : published.Tag + " / " + GitHubUpdateService.DisplayVersion(published.Version))}; current {GitHubUpdateService.DisplayVersion(GitHubUpdateService.CurrentVersion)}; newer available: {available is not null}");
     return;
 }
+if (args.Length == 2 && args[0] == "--global-backend-regressions") { Console.WriteLine("Passed backend audit cases: " + await GlobalAuditBackendSmoke.RunAsync(args[1])); return; }
+if (args.Length == 2 && args[0] == "--probe-published-version")
+{
+    using var releaseHttp=GitHubUpdateService.CreateHttpClient();var releases=new GitHubUpdateService(releaseHttp,args[1]);
+    try{await releases.CheckAsync(GitHubUpdateService.CurrentVersion);}catch(Exception ex) when(ex is HttpRequestException or OperationCanceledException){Console.WriteLine("Update API unavailable; public version fallback: "+(releases.PublishedVersion??"unavailable"));}
+    if(releases.PublishedVersion is null)throw new Exception("Published release version unavailable");
+    var restored=new GitHubUpdateService(releaseHttp,args[1]);if(restored.PublishedVersion!=releases.PublishedVersion)throw new Exception("Published version cache was not preserved");
+    Console.WriteLine("PASS live published release + disk cache: "+releases.PublishedVersion);return;
+}
 if (args.Length == 1 && args[0] == "--dialog-async-smoke")
 {
     DialogAsyncSmoke.Run();
@@ -121,7 +139,8 @@ if (args.Length == 1 && args[0] == "--catalog-pagination")
 if (args.Length == 1 && args[0] == "--probe-curseforge")
 {
     var settings = new LauncherSettings();
-    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+    using var client = LauncherNetwork.CreateClient();
+    client.Timeout = TimeSpan.FromSeconds(30);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("OrbitLauncher/1.2");
     var service = new CurseForgeService(client, settings.CurseForgeApiBase, settings.CurseForgeApiKey);
     var images = new ImageCacheService(client);
@@ -233,10 +252,15 @@ var installer = new MrpackInstaller(http);
 try
 {
     passed += await ReleaseAuditSmoke.RunAsync(temp);
+    passed += await InstanceStorageAuditSmoke.RunAsync(temp);
     passed += await AuditRegressionSmoke.RunAsync(temp);
     passed += await ModInstallRegressionSmoke.RunAsync(temp);
+    passed += await ModDownloadAuditSmoke.RunAsync(temp);
     passed += await UpdateRegressionSmoke.RunAsync(temp);
+    passed += await PublishedVersionSmoke.RunAsync(temp);
+    passed += await GlobalAuditBackendSmoke.RunAsync(temp);
     passed += await NetworkRegressionSmoke.RunAsync(temp);
+    passed += await ZapretCompatibilitySmoke.RunAsync(Path.Combine(temp, "zapret-compatibility"));
     passed += await ElyRegressionSmoke.RunAsync(temp);
     if (!args.Contains("--exclude-connect", StringComparer.Ordinal))
         await Test("Orbit Connect invitations, installer integrity, instance flags, IPC and lifecycle", ConnectRegressionSmoke.RunAsync);

@@ -55,7 +55,7 @@ internal static class UpdateRegressionSmoke
                 Require(request.Headers.Authorization is null && !request.Headers.Contains("x-api-key"), "credentials sent");
                 Require(request.Headers.UserAgent.Count > 0, "GitHub user agent missing"); return Json(Release());
             });
-            var update = await new GitHubUpdateService(client).CheckAsync(new Version(1, 4, 1));
+            var update = await new GitHubUpdateService(client, Path.Combine(root, "metadata")).CheckAsync(new Version(1, 4, 1));
             Require(update?.Version == new Version(1, 5, 0, 0) && update.Sha256 == hash, "new release not selected");
         });
         await Test("equal, older, draft and prerelease versions never prompt", async () =>
@@ -63,19 +63,23 @@ internal static class UpdateRegressionSmoke
             foreach (var data in new[] { Release("v1.4.1"), Release("v1.3.9"), Release(draft: true), Release(prerelease: true) })
             {
                 using var client = Client(_ => Json(data));
-                Require(await new GitHubUpdateService(client).CheckAsync(new Version(1, 4, 1, 0)) is null, "non-update offered");
+                Require(await new GitHubUpdateService(client, Path.Combine(root, "metadata")).CheckAsync(new Version(1, 4, 1, 0)) is null, "non-update offered");
             }
         });
         await Test("existing text tags read an explicit Orbit Launcher release title", async () =>
         {
-            using var client = Client(_ => Json(Release("BigBugFix", "Orbit Launcher 1.5")));
-            Require((await new GitHubUpdateService(client).CheckAsync(new Version(1, 4)))?.Tag == "BigBugFix", "existing tag unsupported");
+            foreach (var (tag, title) in new[] { ("BigBugFix", "Orbit Launcher 1.5"), ("BigBugFix", "Orbit Launcher1.5"), ("Update_1.5", "Orbit Launcher1.5") })
+            {
+                using var client = Client(_ => Json(Release(tag, title)));
+                var update = await new GitHubUpdateService(client, Path.Combine(root, "metadata")).CheckAsync(new Version(1, 4));
+                Require(update?.Tag == tag && update.Version == new Version(1, 5, 0, 0) && update.Sha256 == hash, "existing tag unsupported");
+            }
         });
         await Test("checksum fallback reads the exact installer entry and rejects ambiguity", async () =>
         {
             using var client = Client(request => request.RequestUri!.Host == "api.github.com" ? Json(Release(digest: "", sums: true))
                 : new(HttpStatusCode.OK) { Content = new StringContent(hash + "  " + GitHubUpdateService.InstallerName + "\n") });
-            Require((await new GitHubUpdateService(client).CheckAsync(new Version(1, 4)))?.Sha256 == hash, "checksum fallback failed");
+            Require((await new GitHubUpdateService(client, Path.Combine(root, "metadata")).CheckAsync(new Version(1, 4)))?.Sha256 == hash, "checksum fallback failed");
             await Fails(() => Task.FromResult(GitHubUpdateService.ReadChecksum(hash + "  other.exe")));
             await Fails(() => Task.FromResult(GitHubUpdateService.ReadChecksum(string.Concat(Enumerable.Repeat(hash + "  " + GitHubUpdateService.InstallerName + "\n", 2)))));
         });
@@ -83,13 +87,13 @@ internal static class UpdateRegressionSmoke
         {
             foreach (var data in new[] { Release(installer: false), Release(digest: ""), Release("Release", "Orbit update") })
             {
-                using var client = Client(_ => Json(data)); await Fails(() => new GitHubUpdateService(client).CheckAsync(new Version(1, 4)));
+                using var client = Client(_ => Json(data)); await Fails(() => new GitHubUpdateService(client, Path.Combine(root, "metadata")).CheckAsync(new Version(1, 4)));
             }
         });
         await Test("foreign download URLs and redirects are rejected", async () =>
         {
             using var foreign = Client(_ => Json(Release(download: "https://example.com/installer.exe")));
-            await Fails(() => new GitHubUpdateService(foreign).CheckAsync(new Version(1, 4)));
+            await Fails(() => new GitHubUpdateService(foreign, Path.Combine(root, "metadata")).CheckAsync(new Version(1, 4)));
             var requests = 0;
             using var redirect = Client(_ => { requests++; var response = new HttpResponseMessage(HttpStatusCode.Found); response.Headers.Location = new Uri("https://example.com/file"); return response; });
             await Fails(() => new GitHubUpdateService(redirect, Path.Combine(root, "redirect")).DownloadAsync(Package()));
@@ -161,7 +165,7 @@ internal static class UpdateRegressionSmoke
         {
             foreach (var status in new[] { HttpStatusCode.NotFound, HttpStatusCode.Forbidden, HttpStatusCode.TooManyRequests })
             {
-                using var client = Client(_ => new(status)); await Fails(() => new GitHubUpdateService(client).CheckAsync(new Version(1, 4)));
+                using var client = Client(_ => new(status)); await Fails(() => new GitHubUpdateService(client, Path.Combine(root, "metadata")).CheckAsync(new Version(1, 4)));
             }
         });
         return count;

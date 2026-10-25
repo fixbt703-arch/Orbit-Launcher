@@ -17,7 +17,7 @@ import java.util.ArrayDeque;
 public final class OrbitClient implements ClientModInitializer {
     public static final Logger LOG=LoggerFactory.getLogger("OrbitClient");
     public static ClientConfig config;
-    public static boolean flatText(net.minecraft.client.gui.Font font){return HudRenderer.drawing||OrbitFonts.owns(font)||Minecraft.getInstance().gui.screen() instanceof OrbitScrollScreen;}
+    public static boolean flatText(net.minecraft.client.gui.Font font){return HudRenderer.drawing||OrbitFonts.owns(font)||Minecraft.getInstance().gui.screen() instanceof OrbitUiScreen;}
     public static KeyMapping menuKey, zoomKey,inspectKey;
     public static final java.util.EnumMap<Module,KeyMapping> moduleKeys=new java.util.EnumMap<>(Module.class);
     private static final ArrayDeque<Long> LEFT=new ArrayDeque<>(), RIGHT=new ArrayDeque<>();
@@ -30,7 +30,7 @@ public final class OrbitClient implements ClientModInitializer {
         menuKey=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orbit_client.menu",GLFW.GLFW_KEY_RIGHT_SHIFT,category));
         zoomKey=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orbit_client.zoom",GLFW.GLFW_KEY_C,category));
         inspectKey=KeyMappingHelper.registerKeyMapping(new KeyMapping("key.orbit_client.inspect",GLFW.GLFW_KEY_R,category));
-        for(var module:Module.values()) moduleKeys.put(module,KeyMappingHelper.registerKeyMapping(new KeyMapping(
+        for(var module:Module.values()) if(module!=Module.INTERFACE)moduleKeys.put(module,KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.orbit_client.module."+module.name().toLowerCase(java.util.Locale.ROOT),GLFW.GLFW_KEY_UNKNOWN,category)));
         HoldMyItems.initialize();
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -48,20 +48,27 @@ public final class OrbitClient implements ClientModInitializer {
             }
             for(var entry:moduleKeys.entrySet()) while(entry.getValue().consumeClick()) {
                 if(client.player!=null && client.gui.screen()==null) {
-                    var state=config.state(entry.getKey());state.enabled=!state.enabled;save();
+                    toggleFromKey(entry.getKey());
                 }
             }
             prune(LEFT); prune(RIGHT);
         });
-        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STOPPING.register(client->{ClientFeatures.restoreSprint(client);ExtendedChunks.restore(client);AutoRefill.reset();});
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STOPPING.register(client->{ClientFeatures.restoreSprint(client);ExtendedChunks.restore(client);AutoRefill.reset();GlowOutline.close();});
         HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,
             Identifier.fromNamespaceAndPath("orbit_client","hud"),(g,delta)-> HudRenderer.render(g,false));
-        LOG.info("Orbit Client 0.18.7 initialized for Minecraft 26.2");
+        LOG.info("Orbit Client 0.24.1 initialized for Minecraft 26.2");
     }
     public static String tr(String ru,String en) {
         return Minecraft.getInstance().options.languageCode.startsWith("ru") ? ru : en;
     }
     public static boolean enabled(Module m) { return config!=null && config.state(m).enabled; }
+    public static int menuBlurRadius(int vanilla){return config!=null&&Minecraft.getInstance().gui.screen() instanceof OrbitUiScreen?OrbitTheme.options().effectiveBlurRadius():vanilla;}
+    public static boolean tooltipsAllowed(){return OrbitTheme.options().tooltips||!(Minecraft.getInstance().gui.screen() instanceof OrbitUiScreen);}
+    static void toggleFromKey(Module module){
+        var state=config.state(module);state.enabled=!state.enabled;save();
+        var player=Minecraft.getInstance().player;
+        if(OrbitTheme.options().bindMessages&&player!=null)Minecraft.getInstance().gui.hud.setOverlayMessage(Component.literal("Orbit · "+module.title()+": "+(state.enabled?tr("включён","enabled"):tr("выключен","disabled"))),false);
+    }
     public static void click(int button) {
         Minecraft mc=Minecraft.getInstance();
         if(mc.player==null || mc.gui.screen()!=null || !mc.isWindowActive()) return;

@@ -1,7 +1,7 @@
 {
   "key.category.orbit_client.controls": "Orbit Client",
   "key.orbit_client.menu": "Открыть Orbit Client",
-  "key.orbit_client.zoom": "Приближение Orbit",
+  "key.orbit_client.zoom": "Orbit Zoom",
   "key.orbit_client.module.fps": "Переключить: FPS",
   "key.orbit_client.module.ping": "Переключить: Пинг",
   "key.orbit_client.module.cps": "Переключить: CPS",
@@ -30,5 +30,6 @@
   "key.orbit_client.module.glint": "Переключить: Enchantment Glow",
   "key.orbit_client.module.hitbox": "Переключить: Hitbox",
   "key.orbit_client.inspect": "Hold My Items: осмотр оружия",
+  "key.orbit_client.module.trajectories": "Переключить: Trajectories",
   "key.orbit_client.module.hold_my_items": "Переключить: Hold My Items"
 }

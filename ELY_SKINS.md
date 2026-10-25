@@ -60,6 +60,40 @@ References: [authentication](https://docs.ely.by/en/minecraft-auth.html),
 [skin system](https://docs.ely.by/en/skins-system.html),
 [authlib-injector integration](https://docs.ely.by/en/authlib-injector.html).
 
+## Verification for 1.6.5 (25 October 2026)
+
+Three reproduced issues are fixed: an invalid-size PNG could report a successful
+refresh using an old head; an earlier concurrent response could overwrite or erase
+a newer head; and legacy Authlib rejected valid Ely-signed server textures before
+the texture adapter could process them. Cache changes now belong to the latest
+request for that nickname, and invalid images preserve the previous preview while
+reporting failure. Skin Bridge 1.0.3 verifies legacy server properties at method entry;
+Mojang properties and tampered-signature rejection retain vanilla behavior.
+
+- 193 launcher regressions pass, including 23 Ely cases: 2FA, identity retention,
+  expiry versus network errors, cache isolation, stale responses, redirects, malformed
+  or oversized responses, and both 64×32 and 64×64 PNG layouts.
+- 29 Java probes pass on actual Authlib libraries for Minecraft 1.8.9, 1.16.5,
+  1.20.1, 26.2 and 26.3. Six legacy probes also run on Minecraft's cached Java 8
+  runtime. Modern tests exercise the real 26.2/26.3 SkinManager, HTTPS texture
+  downloads, signature checks, viewer exclusion, server-property priority and loader isolation.
+- Two full Minecraft 26.2/Fabric 0.19.5 runs with the bundled bridge pass: plain
+  offline fallback and the official authlib-injector plus bridge. Both reach an
+  actual secure PlayerSkin and texture renderer, capture screenshots and exit cleanly.
+- The licensed Ely switch persists on/off without changing either account session.
+  RU/EN screens, provider switching and 2FA recovery pass. The real Ely.by upload
+  page loads in WebView2 and exposes its original PNG input; website profiles remain
+  separate when switching game accounts. No PNG is uploaded by these checks.
+
+Licensed launches still preserve the viewer's own Mojang skin and Microsoft
+authentication; the Ely switch controls other-player fallback. Explicit valid
+server-provided textures keep their priority. Offline launches allow their own
+Ely texture. Authentication tests use fixture sessions and game checks use a public
+sample skin: a real Microsoft/Ely password login, authenticated server join and
+the website's Upload/Wear action were not performed. User worlds and accounts and
+Orbit Connect were not changed. These results cover the tested versions, not every
+Minecraft/mod/server combination.
+
 ## Verification for 1.4.3
 
 - 88 launcher regression checks passed, including nine Ely.by authentication,

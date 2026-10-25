@@ -6,20 +6,24 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.imageio.ImageIO;
 import com.mojang.authlib.GameProfile;
-import com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService;
 import net.minecraft.client.renderer.texture.SkinTextureDownloader;
 import net.minecraft.client.resources.SkinManager;
 import net.minecraft.core.ClientAsset;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.Services;
 
-/** Actual Minecraft 26.2 SkinManager without a game window/GPU or account credentials. */
+/** Actual Minecraft 26.2 / 26.3 SkinManager without a game window/GPU or account credentials. */
 public class SkinManagerProbe {
     public static void main(String[] args) {
         int result = 1;
         try {
-            var authentication = new YggdrasilAuthenticationService(Proxy.NO_PROXY);
-            var services = new Services(authentication.createMinecraftSessionService(), authentication.getServicesKeySet(), authentication.createProfileRepository(), null, null);
+            Object authentication;
+            try { authentication = Class.forName("com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService").getConstructor(Proxy.class).newInstance(Proxy.NO_PROXY); }
+            catch (ClassNotFoundException modern) { authentication = Class.forName("com.mojang.authlib.services.MinecraftServicesDiscoveryService").getMethod("create", Proxy.class, boolean.class).invoke(null, Proxy.NO_PROXY, false); }
+            var services = (Services)Services.class.getConstructors()[0].newInstance(
+                authentication.getClass().getMethod("createMinecraftSessionService").invoke(authentication),
+                authentication.getClass().getMethod("getServicesKeySet").invoke(authentication),
+                authentication.getClass().getMethod("createProfileRepository").invoke(authentication), null, null);
             var downloads = new AtomicInteger();
             var downloader = new SkinTextureDownloader(Proxy.NO_PROXY, null, Runnable::run) {
                 public CompletableFuture<ClientAsset.Texture> downloadAndRegisterSkin(Identifier id, Path path, String url, boolean legacy) {
@@ -44,11 +48,13 @@ public class SkinManagerProbe {
             var skin = future.get(20, TimeUnit.SECONDS).orElseThrow();
             if (!skin.secure() || !(skin.body() instanceof ClientAsset.DownloadedTexture)) throw new AssertionError("Skin did not reach the native pipeline");
             if (downloads.get() != 1) throw new AssertionError("Unexpected download count");
-            var viewer = new GameProfile(UUID.fromString("11111111-2222-4333-8444-555555555555"), "OrbitViewer");
-            manager.get(viewer).get(5, TimeUnit.SECONDS);
-            manager.get(new GameProfile(UUID.nameUUIDFromBytes("OfflinePlayer:OrbitViewer".getBytes(StandardCharsets.UTF_8)), "OrbitViewer")).get(5, TimeUnit.SECONDS);
-            if (downloads.get() != 1) throw new AssertionError("Viewer's skin was replaced");
-            System.out.println("PASS real Minecraft 26.2 SkinManager: async Ely resolution, valid PNG download, secure PlayerSkin, viewer exclusion, no loader or GPU required.");
+            if(!Boolean.getBoolean("orbit.skinbridge.includeViewer")){
+                var viewer = new GameProfile(UUID.fromString("11111111-2222-4333-8444-555555555555"), "OrbitViewer");
+                manager.get(viewer).get(5, TimeUnit.SECONDS);
+                manager.get(new GameProfile(UUID.nameUUIDFromBytes("OfflinePlayer:OrbitViewer".getBytes(StandardCharsets.UTF_8)), "OrbitViewer")).get(5, TimeUnit.SECONDS);
+                if (downloads.get() != 1) throw new AssertionError("Viewer's skin was replaced");
+            }
+            System.out.println("PASS real Minecraft SkinManager: async Ely resolution, valid PNG download, secure PlayerSkin, viewer exclusion, no loader or GPU required.");
             result = 0;
         } catch (Throwable failure) { failure.printStackTrace(); }
         System.exit(result); // Minecraft's global background pool is deliberately isolated to this process.

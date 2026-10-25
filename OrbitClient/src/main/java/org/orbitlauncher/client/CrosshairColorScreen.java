@@ -9,7 +9,7 @@ import java.awt.Color;
 import static org.orbitlauncher.client.OrbitClient.tr;
 
 /** Mouse/drag HSV picker with an exact HEX alternative and live target previews. */
-final class CrosshairColorScreen extends Screen {
+final class CrosshairColorScreen extends OrbitUiScreen {
     private final Screen parent;
     private int x,y,w,h,leftW,rightX,rightW,bodyY,svHeight,hueY,footer,role,drag=-1;
     private float hue,saturation,value;
@@ -28,7 +28,7 @@ final class CrosshairColorScreen extends Screen {
         if(role==2&&!state().separateFriendlyColor)role=1;
         readColor();
         String[] modes={tr("Обычный цвет","Static color"),tr("По цели","By target"),tr("Инверсия","Inversion")};
-        addRenderableWidget(new OrbitButton(x+w-116,y+9,104,22,modes[state().crosshairColorMode],false,()->{state().crosshairColorMode=(state().crosshairColorMode+1)%3;OrbitClient.save();rebuildWidgets();}));
+        addRenderableWidget(new OrbitButton(x+w-116,y+9,104,22,modes[state().crosshairColorMode],false,()->{state().crosshairColorMode=(state().crosshairColorMode+1)%3;OrbitClient.save();rebuildWidgets();}).focusId("crosshair-color-mode"));
         int count=state().crosshairColorMode==1?(state().separateFriendlyColor?3:2):1,tw=(w-24-(count-1)*4)/count;
         String[] names={tr("Без цели","No target"),tr("При наведении","On target"),tr("Союзник","Friendly")};
         for(int i=0;i<count;i++){final int id=i;addRenderableWidget(new OrbitButton(x+12+i*(tw+4),y+36,tw,20,count==1?tr("Цвет прицела","Crosshair color"):names[i],role==i,()->{role=id;rebuildWidgets();pageTransition.start();}).asTab());}

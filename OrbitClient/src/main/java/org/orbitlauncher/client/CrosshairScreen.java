@@ -67,7 +67,7 @@ final class CrosshairScreen extends OrbitScrollScreen {
     private static final int[] BACKGROUNDS={0xFF101927,0xFF25344A,0xFF674D3D,0xFFD7E4E7};
     @Override public void extractRenderState(GuiGraphicsExtractor g,int mx,int my,float delta) {
         animateScroll();
-        OrbitTheme.window(g,width,height,x,y,w,h);
+        beginWindow(g,x,y,w,h);
         g.text(OrbitFonts.heading(),OrbitTheme.ellipsize(OrbitFonts.heading(),tr("Редактор прицела","Crosshair editor"),w-160),x+12,y+13,OrbitTheme.TEXT,false);
         g.text(font,tr("Предпросмотр","Preview"),rightX,y+39,OrbitTheme.MUTED,false);
         int py=y+59,ph=Math.max(20,footer-29-py);OrbitTheme.surface(g,rightX,py,rightW,ph,BACKGROUNDS[background],OrbitTheme.BORDER);

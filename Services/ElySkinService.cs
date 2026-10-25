@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media.Imaging;
 using OrbitLauncher.Utilities;
 
 namespace OrbitLauncher.Services;
@@ -12,6 +14,8 @@ public sealed class ElySkinService
 {
     private readonly HttpClient _http;
     private readonly PlayerSkinService _heads;
+    private readonly ConcurrentDictionary<string, RefreshState> _refreshes = new(StringComparer.OrdinalIgnoreCase);
+    private sealed class RefreshState { public long Revision; }
     public ElySkinService(HttpClient http, string? cache = null)
     {
         _http = http;
@@ -21,10 +25,20 @@ public sealed class ElySkinService
 
     public async Task<PlayerHeadImage?> RefreshHeadAsync(string name, CancellationToken token = default)
     {
+        var refresh = _refreshes.GetOrAdd(name, _ => new RefreshState());
+        long revision;
+        lock (refresh) revision = ++refresh.Revision;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(12));
         using var response = await DownloadAsync(new Uri("https://skinsystem.ely.by/skins/" + Uri.EscapeDataString(name) + ".png?version=2"), deadline.Token);
-        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NoContent) { _heads.ForgetSkin(name); return null; }
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NoContent)
+        {
+            lock (refresh)
+            {
+                if (revision == refresh.Revision) _heads.ForgetSkin(name);
+                return _heads.GetCachedHead(name);
+            }
+        }
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
         using var buffer = new MemoryStream();
@@ -35,8 +49,16 @@ public sealed class ElySkinService
             if (buffer.Length + read > 196608) throw new InvalidDataException("Ely.by вернул слишком большой файл скина.");
             buffer.Write(chunk, 0, read);
         }
-        _heads.RememberSkin(name, buffer.ToArray());
-        return _heads.GetCachedHead(name);
+        lock (refresh)
+        {
+            if (revision != refresh.Revision) return _heads.GetCachedHead(name);
+            buffer.Position = 0;
+            var image = new PngBitmapDecoder(buffer, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            if (image.Frames.Count == 0 || image.Frames[0].PixelWidth != 64 || image.Frames[0].PixelHeight is not (32 or 64))
+                throw new InvalidDataException("Ely.by вернул некорректный размер скина.");
+            _heads.RememberSkin(name, buffer.ToArray());
+            return _heads.GetCachedHead(name);
+        }
     }
 
     private async Task<HttpResponseMessage> DownloadAsync(Uri address, CancellationToken token)

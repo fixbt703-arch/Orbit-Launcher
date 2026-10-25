@@ -66,6 +66,24 @@ internal static class DialogAsyncSmoke
                     Prepare(closing); closing.Show(); closing.Close();
                     await Task.Delay(600);
                     Console.WriteLine("PASS dialog: create/toggle/close during outstanding requests completes without an unhandled error");
+
+                    var earlier = new TaskCompletionSource<IReadOnlyList<CatalogVersion>>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    var latest = new TaskCompletionSource<IReadOnlyList<CatalogVersion>>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    var requests = 0;
+                    var picker = new VersionPickerWindow(new GameInstance { GameVersion = "26.2", Loader = "Fabric" },
+                        new ModProjectDetails { Title = "Race fixture", GameVersions = new[] { "26.2", "1.20.1" }, Loaders = new[] { "Fabric" } },
+                        (_, _, _) => ++requests == 1 ? earlier.Task : latest.Task);
+                    Prepare(picker); picker.Show(); await Until(() => requests == 1);
+                    ((ComboBox)picker.FindName("GameVersionCombo")).SelectedValue = "1.20.1";
+                    await Until(() => requests == 2);
+                    latest.SetResult(new[] { new CatalogVersion("latest", "Latest", "new.jar", "release", null, new[] { "1.20.1" }, new[] { "Fabric" }) });
+                    await Until(() => picker.Versions.SingleOrDefault()?.Id == "latest");
+                    earlier.SetResult(new[] { new CatalogVersion("earlier", "Earlier", "old.jar", "release", null, new[] { "26.2" }, new[] { "Fabric" }) });
+                    await picker.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    ((ComboBox)picker.FindName("ChannelCombo")).SelectedValue = "release";
+                    if (picker.Versions.SingleOrDefault()?.Id != "latest") throw new Exception("Cancelled version response replaced the current channel's backing list");
+                    picker.Close();
+                    Console.WriteLine("PASS dialog: late cancelled version response cannot overwrite a newer list after channel filtering");
                 }
                 catch (Exception ex) { failure = ex; }
                 finally { app.Shutdown(); }

@@ -11,15 +11,16 @@ public final class GenerateUiAssets {
     public static void main(String[] args) throws Exception {
         Path root=Path.of(args[0]);Files.createDirectories(root.resolve("icons"));
         mask(root,"panel",32,4);mask(root,"outline",32,4);mask(root,"window",48,8);mask(root,"window_outline",48,8);mask(root,"pill",16,7);mask(root,"pill_outline",16,7);mask(root,"circle",16,8);
+        for(int radius=1;radius<=12;radius++){mask(root,"radius_"+radius,32,radius);mask(root,"radius_"+radius+"_outline",32,radius);}
         tooltip(root.getParent().resolve("tooltip"));
         Files.copy(Path.of(args[1]),root.resolve("icons/logo.png"),StandardCopyOption.REPLACE_EXISTING);
         Files.writeString(root.resolve("icons/logo.png.mcmeta"),"{\"texture\":{\"blur\":true,\"clamp\":true}}");
-        for(String name:new String[]{"fps","ping","cps","keys","armor","item","effects","coords","direction","speed","clock","session","sprint","toggle_sprint","crosshair","arrows","resources","reach","server","memory","waypoint","chunks","auto_refill","zoom","skin_3d","glint","hitbox","hold_my_items","search","close","left","right","settings","check","grid","all","hud","pvp","client","on"}) {
+        for(String name:new String[]{"fps","ping","cps","keys","armor","item","effects","coords","direction","speed","clock","session","sprint","toggle_sprint","crosshair","arrows","resources","reach","server","memory","waypoint","chunks","auto_refill","zoom","skin_3d","glint","hitbox","hold_my_items","trajectories","search","close","left","right","settings","check","grid","all","hud","pvp","client","on"}) {
             BufferedImage image=new BufferedImage(96,96,BufferedImage.TYPE_INT_ARGB);g=image.createGraphics();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);g.scale(4,4);
             g.setColor(Color.WHITE);g.setStroke(new BasicStroke(1.8f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));
             artwork=new Area();icon(name);g.fill(artwork);g.dispose();ImageIO.write(image,"png",root.resolve("icons/"+name+".png").toFile());
-            Files.writeString(root.resolve("icons/"+name+".png.mcmeta"),"{\"texture\":{\"blur\":"+!name.equals("item")+",\"clamp\":true}}");
+            Files.writeString(root.resolve("icons/"+name+".png.mcmeta"),"{\"texture\":{\"blur\":"+!(name.equals("item")||name.equals("pvp"))+",\"clamp\":true}}");
         }
     }
     private static void pixelSword(){
@@ -80,7 +81,7 @@ public final class GenerateUiAssets {
             case "keys" -> {box(9,3,6,6);box(2,13,6,6);box(9,13,6,6);box(16,13,6,6);line(5,22,19,22);}
             case "armor" -> {curve(12,3,9,5,6,5,4,6,4,14,6,19,12,22,18,19,20,14,20,6,18,5,15,5,12,3);line(12,8,12,16);line(8,12,16,12);}
             case "item" -> pixelSword();
-            case "pvp" -> {curve(8,15,10,12,15,6,20,3,21,8,15,14,12,17);line(6,12,12,18);line(8,16,4,20);line(3,18,6,21);}
+            case "pvp" -> pixelSword();
             case "effects" -> {line(9,3,15,3);curve(9,3,9,6,10,9,7,12,2,17,4,21,8,21);curve(15,3,15,6,14,9,17,12,22,17,20,21,16,21);line(8,21,16,21);line(6,15,18,15);dot(10,18,1);}
             case "coords" -> {curve(12,22,8,17,5,13,5,9,5,1,19,1,19,9,19,13,16,17,12,22);circle(12,9,2.5);}
             case "direction" -> {circle(12,12,9);line(15.5,8.5,14,14,8.5,15.5,10,10,15.5,8.5);}
@@ -89,6 +90,7 @@ public final class GenerateUiAssets {
             case "session" -> {circle(12,14,7);line(9,2,15,2);line(12,2,12,5);line(18,6,20,4);line(12,9,12,14);}
             case "sprint","toggle_sprint" -> {dot(16,4,2);curve(12,8,11,10,10,12,10,14,12,15,14,16,16,17);line(16,17,16,21);curve(12,8,15,9,15,12,20,12);curve(12,8,9,7,7,9,6,11);curve(10,14,9,17,7,20,4,21);if(name.equals("toggle_sprint"))line(3,4,7,4);}
             case "crosshair" -> {circle(12,12,6);line(12,3,12,6);line(12,18,12,21);line(3,12,6,12);line(18,12,21,12);dot(12,12,1.3);}
+            case "trajectories" -> {curve(3,19,6,2,16,2,21,15);line(16,13,21,15,22,10);line(2,21,7,21);}
             case "arrows" -> {line(5,19,19,5);line(12,5,19,5,19,12);line(4,14,4,20,10,20);}
             case "resources" -> {curve(3,9,4,7,5,5,7,3);line(7,3,17,3);curve(17,3,19,5,20,7,21,9);line(21,9,12,21,3,9,21,9);line(8,9,12,21,16,9);}
             case "reach" -> {stroke(new RoundRectangle2D.Double(3,7,18,10,5,5));line(7,7,7,11);line(12,7,12,13);line(17,7,17,11);}

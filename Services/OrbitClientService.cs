@@ -12,7 +12,7 @@ public sealed class OrbitClientService(HttpClient httpClient)
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> InstallGates = new(StringComparer.OrdinalIgnoreCase);
     public const string GameVersion = "26.2";
-    public const string ClientVersion = "0.18.7";
+    public const string ClientVersion = "0.24.1";
     public const string JarName = "orbit-client-26.2.jar";
     public static bool Supports(string gameVersion, string loader) =>
         gameVersion == GameVersion && string.Equals(loader, "Fabric", StringComparison.OrdinalIgnoreCase);
